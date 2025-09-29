@@ -1,0 +1,888 @@
+<!--
+Generated with Claude Code
+-->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sprite Editor - Glyph Matrix Tool</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #1a1a1a;
+        color: #e0e0e0;
+      }
+
+      h1 {
+        text-align: center;
+        color: #f0f0f0;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+      .container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-top: 20px;
+      }
+      .panel {
+        background: #2a2a2a;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      }
+      .panel h2 {
+        margin-top: 0;
+        color: #f0f0f0;
+        font-size: 18px;
+      }
+      .panel h3 {
+        color: #e0e0e0;
+        font-size: 16px;
+        margin-top: 20px;
+        margin-bottom: 10px;
+      }
+      input[type="file"] {
+        width: 100%;
+        padding: 10px;
+        border: 2px dashed #555;
+        border-radius: 4px;
+        background: #333;
+        color: #e0e0e0;
+        margin-bottom: 15px;
+      }
+      .control-group {
+        margin: 12px 0;
+      }
+      .control-group label {
+        display: block;
+        font-size: 14px;
+        color: #b0b0b0;
+        margin-bottom: 5px;
+      }
+      input[type="range"] {
+        width: 100%;
+        margin-bottom: 2px;
+      }
+      input[type="number"] {
+        background: #333;
+        color: #e0e0e0;
+        border: 1px solid #555;
+        padding: 5px 10px;
+        border-radius: 4px;
+        width: 100px;
+      }
+      .range-value {
+        font-size: 12px;
+        color: #888;
+      }
+      .button-group {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 10px 0;
+      }
+      button {
+        padding: 8px 16px;
+        border: 1px solid #555;
+        border-radius: 4px;
+        background: #333;
+        color: #e0e0e0;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      button:hover:not(:disabled) {
+        background: #444;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      canvas {
+        border: 1px solid #555;
+        background: #222;
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
+        display: block;
+        margin: 10px auto;
+      }
+      .preview-container {
+        text-align: center;
+      }
+      .preview-container canvas {
+        cursor: crosshair;
+      }
+      #sourceCanvas {
+        background: repeating-conic-gradient(#333 0% 25%, #2a2a2a 0% 50%) 50% / 20px 20px;
+      }
+      .palette {
+        display: flex;
+        gap: 2px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid #555;
+        border-radius: 4px;
+        background: #333;
+      }
+      .color-btn {
+        width: 30px;
+        height: 30px;
+        border: 2px solid transparent;
+        cursor: pointer;
+        border-radius: 2px;
+      }
+      .color-btn.selected {
+        border-color: #4a9eff;
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #stats {
+        margin-top: 10px;
+        padding: 10px;
+        background: #333;
+        border-radius: 4px;
+        font-size: 12px;
+        color: #b0b0b0;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sprite Workflow - Glyph Matrix Tool</h1>
+
+    <div class="container">
+      <div class="panel">
+        <h2>Input & Processing</h2>
+
+        <input type="file" id="fileInput" accept="image/*" placeholder="Choose sprite image..." />
+
+        <div class="button-group">
+          <button id="loadProjectBtn">Load Project</button>
+          <input type="file" id="projectInput" accept=".json" style="display: none" />
+        </div>
+
+        <div id="processingControls" class="hidden">
+          <h3>Processing Settings</h3>
+
+          <div class="control-group">
+            <label for="paddingSlider"
+              >White Background Padding: <span id="paddingValue">5</span>px</label
+            >
+            <input type="range" id="paddingSlider" min="0" max="20" value="5" />
+          </div>
+
+          <h3>Fine-tune Position</h3>
+
+          <div class="control-group">
+            <label for="cropSlider">Crop Size: <span id="cropValue">36</span>px</label>
+            <input type="range" id="cropSlider" min="25" max="100" value="36" />
+          </div>
+
+          <div class="control-group">
+            <label for="offsetX">Offset X: <span id="offsetXValue">0</span>px</label>
+            <input type="range" id="offsetX" min="0" max="0" value="0" />
+          </div>
+
+          <div class="control-group">
+            <label for="offsetY">Offset Y: <span id="offsetYValue">0</span>px</label>
+            <input type="range" id="offsetY" min="0" max="0" value="0" />
+          </div>
+
+          <div class="control-group">
+            <label for="contrastSlider">Contrast: <span id="contrastValue">175</span>%</label>
+            <input type="range" id="contrastSlider" min="0" max="200" value="175" />
+          </div>
+
+          <label>
+            <input type="checkbox" id="showCircular" checked />
+            Show Circular Display Boundary
+          </label>
+        </div>
+
+        <div class="preview-container">
+          <canvas id="sourceCanvas" width="200" height="200"></canvas>
+        </div>
+
+        <div id="stats"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Output (25x25)</h2>
+
+        <div class="preview-container">
+          <canvas id="outputCanvas" width="250" height="250"></canvas>
+        </div>
+
+        <div style="margin-top: 15px">
+          <h3>Actual Size Preview</h3>
+          <canvas id="previewCanvas" width="100" height="100"></canvas>
+        </div>
+
+        <div id="editingControls" class="hidden">
+          <h3>Edit Tools</h3>
+          <div class="button-group">
+            <button id="undoBtn">Undo</button>
+            <button id="redoBtn">Redo</button>
+          </div>
+
+          <h3>Palette</h3>
+          <div class="palette" id="palette"></div>
+
+          <h3>Export</h3>
+          <div class="control-group">
+            <label for="fileNumber">File Number:</label>
+            <input type="number" id="fileNumber" min="0" max="9999" value="1" />
+          </div>
+
+          <div class="button-group">
+            <button id="exportSpriteBtn">Export Sprite</button>
+            <button id="exportMatrixBtn">Export Matrix</button>
+            <button id="exportBothBtn">Export Both</button>
+            <button id="saveProjectBtn">Save Project</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const MATRIX_SIZE = 25;
+      const MATRIX_CENTER = 12;
+      const MATRIX_RADIUS = 12.5;
+      const EDIT_SCALE = 10;
+      const PREVIEW_SCALE = 4;
+      const SOURCE_PREVIEW_SIZE = 200;
+      const OUTPUT_SIZE = 300;
+      const GAP_RATIO = 0.1;
+      const MAX_HISTORY = 50;
+      const GRAYSCALE_PALETTE_STEP = 17;
+      const DEFAULT_CONTRAST = 175;
+      const DEFAULT_PADDING = 5;
+      const DEFAULT_CROP = 36;
+
+      const sourceCanvas = document.getElementById("sourceCanvas");
+      const outputCanvas = document.getElementById("outputCanvas");
+      const previewCanvas = document.getElementById("previewCanvas");
+      const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+      const outputCtx = outputCanvas.getContext("2d", { willReadFrequently: true });
+      const previewCtx = previewCanvas.getContext("2d", { willReadFrequently: true });
+
+      let originalImage = null;
+      let processedImage = null;
+      let outputImageData = null;
+      let selectedColor = "#000000";
+      let history = [];
+      let historyIndex = -1;
+      let isDrawing = false;
+
+      [sourceCtx, outputCtx, previewCtx].forEach((ctx) => {
+        ctx.imageSmoothingEnabled = false;
+      });
+
+      const circularMask = [];
+      for (let y = 0; y < MATRIX_SIZE; y++) {
+        for (let x = 0; x < MATRIX_SIZE; x++) {
+          const dx = x - MATRIX_CENTER;
+          const dy = y - MATRIX_CENTER;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          circularMask.push(distance <= MATRIX_RADIUS);
+        }
+      }
+
+      document.getElementById("fileInput").addEventListener("change", handleFileSelect);
+      document.getElementById("projectInput").addEventListener("change", loadProject);
+
+      document.getElementById("loadProjectBtn").addEventListener("click", () => {
+        document.getElementById("projectInput").click();
+      });
+
+      document.getElementById("paddingSlider").addEventListener("input", processImage);
+      document.getElementById("cropSlider").addEventListener("input", updateCanvas);
+      document.getElementById("offsetX").addEventListener("input", updateCanvas);
+      document.getElementById("offsetY").addEventListener("input", updateCanvas);
+      document.getElementById("contrastSlider").addEventListener("input", updateCanvas);
+      document.getElementById("showCircular").addEventListener("change", renderOutput);
+
+      document.getElementById("undoBtn").addEventListener("click", undo);
+      document.getElementById("redoBtn").addEventListener("click", redo);
+      document.getElementById("exportSpriteBtn").addEventListener("click", () => exportSprite());
+      document.getElementById("exportMatrixBtn").addEventListener("click", () => exportMatrix());
+      document.getElementById("exportBothBtn").addEventListener("click", () => {
+        exportSprite();
+        exportMatrix();
+      });
+      document.getElementById("saveProjectBtn").addEventListener("click", saveProject);
+
+      outputCanvas.addEventListener("mousedown", startDrawing);
+      outputCanvas.addEventListener("mousemove", draw);
+      outputCanvas.addEventListener("mouseup", stopDrawing);
+      outputCanvas.addEventListener("mouseout", stopDrawing);
+
+      function handleFileSelect(e) {
+        const file = e.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          const img = new Image();
+          img.onload = function () {
+            originalImage = img;
+            document.getElementById("processingControls").classList.remove("hidden");
+            document.getElementById("editingControls").classList.remove("hidden");
+            processImage();
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function trimTransparency(canvas) {
+        const ctx = canvas.getContext("2d");
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        let minX = canvas.width;
+        let minY = canvas.height;
+        let maxX = 0;
+        let maxY = 0;
+
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            const alpha = data[(y * canvas.width + x) * 4 + 3];
+            if (alpha > 0) {
+              minX = Math.min(minX, x);
+              minY = Math.min(minY, y);
+              maxX = Math.max(maxX, x);
+              maxY = Math.max(maxY, y);
+            }
+          }
+        }
+
+        if (minX > maxX || minY > maxY) {
+            return canvas;
+        }
+
+        const trimmedWidth = maxX - minX + 1;
+        const trimmedHeight = maxY - minY + 1;
+        const trimmedCanvas = createCanvas(trimmedWidth, trimmedHeight);
+        const trimmedCtx = trimmedCanvas.getContext("2d");
+
+        trimmedCtx.drawImage(
+          canvas,
+          minX,
+          minY,
+          trimmedWidth,
+          trimmedHeight,
+          0,
+          0,
+          trimmedWidth,
+          trimmedHeight,
+        );
+
+        return trimmedCanvas;
+      }
+
+      function processImage() {
+        if (!originalImage) {
+            return;
+        }
+
+        const padding = getSliderValue("paddingSlider");
+        updateSliderDisplay("padding", padding);
+
+        const tempCanvas = createCanvas(originalImage.width, originalImage.height);
+        const tempCtx = tempCanvas.getContext("2d");
+        tempCtx.drawImage(originalImage, 0, 0);
+
+        const trimmedCanvas = trimTransparency(tempCanvas);
+
+        const paddedCanvas = createCanvas(
+          trimmedCanvas.width + padding * 2,
+          trimmedCanvas.height + padding * 2,
+        );
+        const paddedCtx = paddedCanvas.getContext("2d");
+
+        paddedCtx.fillStyle = "#FFFFFF";
+        paddedCtx.fillRect(0, 0, paddedCanvas.width, paddedCanvas.height);
+        paddedCtx.drawImage(trimmedCanvas, padding, padding);
+
+        processedImage = new Image();
+        processedImage.onload = function () {
+          updateOffsetRanges();
+          updateCanvas();
+          updateStats();
+        };
+        processedImage.src = paddedCanvas.toDataURL();
+      }
+
+      function updateOffsetRanges() {
+        if (!processedImage) {
+            return;
+        }
+
+        const cropSize = parseInt(document.getElementById("cropSlider").value);
+        const maxOffsetX = Math.max(0, processedImage.width - cropSize);
+        const maxOffsetY = Math.max(0, processedImage.height - cropSize);
+
+        document.getElementById("offsetX").max = maxOffsetX;
+        document.getElementById("offsetY").max = maxOffsetY;
+
+        // Update slider max for crop size
+        const maxCrop = Math.min(processedImage.width, processedImage.height);
+        const cropSlider = document.getElementById("cropSlider");
+        cropSlider.max = Math.max(25, Math.min(100, maxCrop));
+
+        // Reset offsets if they exceed new maximums
+        if (parseInt(document.getElementById("offsetX").value) > maxOffsetX) {
+          document.getElementById("offsetX").value = 0;
+        }
+
+        if (parseInt(document.getElementById("offsetY").value) > maxOffsetY) {
+          document.getElementById("offsetY").value = 0;
+        }
+      }
+
+      function updateStats() {
+        if (!originalImage || !processedImage) {
+          document.getElementById("stats").textContent = "";
+          return;
+        }
+
+        const stats = `Original: ${originalImage.width}×${originalImage.height}px → Processed: ${processedImage.width}×${processedImage.height}px`;
+        document.getElementById("stats").textContent = stats;
+      }
+
+      function getSliderValue(id) {
+        return parseInt(document.getElementById(id).value);
+      }
+
+      function updateSliderDisplay(id, value) {
+        document.getElementById(id + "Value").textContent = value;
+      }
+
+      function createCanvas(width, height) {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        return canvas;
+      }
+
+      function applyGrayscale(imageData) {
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+          data[i] = data[i + 1] = data[i + 2] = gray;
+        }
+      }
+
+      function applyContrast(imageData, contrast) {
+        if (contrast <= 0) {
+            return;
+        }
+
+        const data = imageData.data;
+        const strength = contrast / 100;
+
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i] < 255) {
+            const luminance = data[i] / 255;
+            let factor;
+
+            if (strength <= 1) {
+              const darkenAmount = (1 - luminance) * strength;
+              factor = 1 - darkenAmount;
+            } else {
+              const threshold = (strength - 1) * 0.5;
+              factor = luminance < threshold ? 0 : Math.pow(luminance, strength);
+            }
+
+            const value = Math.floor(data[i] * factor);
+            data[i] = data[i + 1] = data[i + 2] = value;
+          }
+        }
+      }
+
+      function updateCanvas() {
+        if (!processedImage) {
+            return;
+        }
+
+        const cropSize = getSliderValue("cropSlider");
+        const offsetX = getSliderValue("offsetX");
+        const offsetY = getSliderValue("offsetY");
+        const contrast = getSliderValue("contrastSlider");
+
+        updateSliderDisplay("crop", cropSize);
+        updateSliderDisplay("offsetX", offsetX);
+        updateSliderDisplay("offsetY", offsetY);
+        updateSliderDisplay("contrast", contrast);
+
+        updateOffsetRanges();
+
+        sourceCtx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+        sourceCtx.save();
+        sourceCtx.imageSmoothingEnabled = true;
+        sourceCtx.scale(SOURCE_PREVIEW_SIZE / cropSize, SOURCE_PREVIEW_SIZE / cropSize);
+        sourceCtx.drawImage(
+          processedImage,
+          offsetX,
+          offsetY,
+          cropSize,
+          cropSize,
+          0,
+          0,
+          cropSize,
+          cropSize,
+        );
+        sourceCtx.restore();
+
+        const tempCanvas = createCanvas(MATRIX_SIZE, MATRIX_SIZE);
+        const tempCtx = tempCanvas.getContext("2d");
+        tempCtx.imageSmoothingEnabled = true;
+        tempCtx.drawImage(
+          processedImage,
+          offsetX,
+          offsetY,
+          cropSize,
+          cropSize,
+          0,
+          0,
+          MATRIX_SIZE,
+          MATRIX_SIZE,
+        );
+
+        outputImageData = tempCtx.getImageData(0, 0, MATRIX_SIZE, MATRIX_SIZE);
+
+        applyGrayscale(outputImageData);
+        applyContrast(outputImageData, contrast);
+
+        renderOutput();
+        extractPalette();
+        saveToHistory();
+      }
+
+      function renderMatrixToCanvas(ctx, imageData, scale, showCircular) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+        for (let y = 0; y < MATRIX_SIZE; y++) {
+          for (let x = 0; x < MATRIX_SIZE; x++) {
+            const pixelIndex = y * MATRIX_SIZE + x;
+            const i = pixelIndex * 4;
+
+            if (showCircular && !circularMask[pixelIndex]) {
+              ctx.fillStyle = "#1a1a1a";
+            } else {
+              const r = imageData.data[i];
+              const g = imageData.data[i + 1];
+              const b = imageData.data[i + 2];
+              const a = imageData.data[i + 3];
+              ctx.fillStyle = `rgba(${r},${g},${b},${a / 255})`;
+            }
+
+            ctx.fillRect(x * scale, y * scale, scale, scale);
+          }
+        }
+      }
+
+      function renderOutput() {
+        if (!outputImageData) {
+            return;
+        }
+
+        const showCircular = document.getElementById("showCircular").checked;
+        renderMatrixToCanvas(outputCtx, outputImageData, EDIT_SCALE, showCircular);
+        renderMatrixToCanvas(previewCtx, outputImageData, PREVIEW_SCALE, showCircular);
+      }
+
+      function extractPalette() {
+        if (!outputImageData) {
+            return;
+        }
+
+        const colors = [];
+        for (let i = 0; i <= 255; i += GRAYSCALE_PALETTE_STEP) {
+          colors.push(`rgb(${i},${i},${i})`);
+        }
+
+        const paletteDiv = document.getElementById("palette");
+        paletteDiv.innerHTML = "";
+
+        colors.forEach((color, index) => {
+          const btn = document.createElement("div");
+          btn.className = "color-btn";
+          btn.style.backgroundColor = color;
+          btn.onclick = () => selectColor(color, btn);
+          if (index === 0) selectColor(color, btn);
+          paletteDiv.appendChild(btn);
+        });
+      }
+
+      function selectColor(color, btn) {
+        selectedColor = color;
+        document.querySelectorAll(".color-btn").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+      }
+
+      function saveToHistory() {
+        if (!outputImageData) {
+            return;
+        }
+
+        history = history.slice(0, historyIndex + 1);
+
+        const data = new Uint8ClampedArray(outputImageData.data);
+        const imageData = new ImageData(data, MATRIX_SIZE, MATRIX_SIZE);
+
+        history.push(imageData);
+        historyIndex++;
+
+        if (history.length > MAX_HISTORY) {
+          history.shift();
+          historyIndex--;
+        }
+
+        updateHistoryButtons();
+      }
+
+      function updateHistoryButtons() {
+        document.getElementById("undoBtn").disabled = historyIndex <= 0;
+        document.getElementById("redoBtn").disabled = historyIndex >= history.length - 1;
+      }
+
+      function loadHistoryState(index) {
+        outputImageData = new ImageData(
+          new Uint8ClampedArray(history[index].data),
+          MATRIX_SIZE,
+          MATRIX_SIZE,
+        );
+        renderOutput();
+        updateHistoryButtons();
+      }
+
+      function undo() {
+        if (historyIndex > 0) {
+          historyIndex--;
+          loadHistoryState(historyIndex);
+        }
+      }
+
+      function redo() {
+        if (historyIndex < history.length - 1) {
+          historyIndex++;
+          loadHistoryState(historyIndex);
+        }
+      }
+
+      function startDrawing(e) {
+        isDrawing = true;
+        draw(e);
+      }
+
+      function getCanvasCoordinates(e, canvas, scale) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: Math.floor((e.clientX - rect.left) / scale),
+          y: Math.floor((e.clientY - rect.top) / scale),
+        };
+      }
+
+      function setPixelColor(x, y, color) {
+        const i = (y * MATRIX_SIZE + x) * 4;
+        const rgb = color.match(/\d+/g);
+        outputImageData.data[i] = parseInt(rgb[0]);
+        outputImageData.data[i + 1] = parseInt(rgb[1]);
+        outputImageData.data[i + 2] = parseInt(rgb[2]);
+        outputImageData.data[i + 3] = 255;
+      }
+
+      function draw(e) {
+        if (!isDrawing || !outputImageData) {
+            return;
+        }
+
+        const coords = getCanvasCoordinates(e, outputCanvas, EDIT_SCALE);
+
+        if (coords.x >= 0 && coords.x < MATRIX_SIZE && coords.y >= 0 && coords.y < MATRIX_SIZE) {
+          setPixelColor(coords.x, coords.y, selectedColor);
+          renderOutput();
+        }
+      }
+
+      function stopDrawing() {
+        if (isDrawing && outputImageData) {
+          saveToHistory();
+        }
+        isDrawing = false;
+      }
+
+      function getFileNumber() {
+        return document.getElementById("fileNumber").value.padStart(4, "0");
+      }
+
+      function downloadCanvas(canvas, filename) {
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = canvas.toDataURL();
+        link.click();
+      }
+
+      function applyCircularMask(imageData) {
+        const maskedData = new ImageData(MATRIX_SIZE, MATRIX_SIZE);
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          const pixelIndex = i / 4;
+          if (circularMask[pixelIndex]) {
+            maskedData.data[i] = imageData.data[i];
+            maskedData.data[i + 1] = imageData.data[i + 1];
+            maskedData.data[i + 2] = imageData.data[i + 2];
+            maskedData.data[i + 3] = imageData.data[i + 3];
+          }
+        }
+        return maskedData;
+      }
+
+      function exportSprite() {
+        if (!outputImageData) {
+            return;
+        }
+
+        const canvas = createCanvas(MATRIX_SIZE, MATRIX_SIZE);
+        const ctx = canvas.getContext("2d");
+        const maskedData = applyCircularMask(outputImageData);
+        ctx.putImageData(maskedData, 0, 0);
+
+        downloadCanvas(canvas, `sprite_${getFileNumber()}.png`);
+      }
+
+      function exportMatrix() {
+        if (!outputImageData) {
+            return;
+        }
+
+        const canvas = createCanvas(OUTPUT_SIZE, OUTPUT_SIZE);
+        const ctx = canvas.getContext("2d");
+        const pixelSize = OUTPUT_SIZE / MATRIX_SIZE;
+        const gapSize = pixelSize * GAP_RATIO;
+        const dotSize = pixelSize - gapSize;
+
+        ctx.clearRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+
+        for (let y = 0; y < MATRIX_SIZE; y++) {
+          for (let x = 0; x < MATRIX_SIZE; x++) {
+            const pixelIndex = y * MATRIX_SIZE + x;
+
+            if (!circularMask[pixelIndex]) continue;
+
+            const i = pixelIndex * 4;
+            const r = outputImageData.data[i];
+            const g = outputImageData.data[i + 1];
+            const b = outputImageData.data[i + 2];
+            const a = outputImageData.data[i + 3];
+
+            if (a > 0) {
+              ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a / 255})`;
+              const px = x * pixelSize + gapSize / 2;
+              const py = y * pixelSize + gapSize / 2;
+              ctx.fillRect(px, py, dotSize, dotSize);
+            }
+          }
+        }
+
+        downloadCanvas(canvas, `matrix_${getFileNumber()}.png`);
+      }
+
+      function saveProject() {
+        if (!originalImage) {
+            return;
+        }
+
+        const project = {
+          version: 1,
+          sourceImage: originalImage.src,
+          settings: {
+            padding: getSliderValue("paddingSlider"),
+            cropSize: getSliderValue("cropSlider"),
+            offsetX: getSliderValue("offsetX"),
+            offsetY: getSliderValue("offsetY"),
+            contrast: getSliderValue("contrastSlider"),
+            fileNumber: getSliderValue("fileNumber"),
+          },
+          outputData: outputImageData ? Array.from(outputImageData.data) : null,
+        };
+
+        const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
+        const link = document.createElement("a");
+        link.download = `sprite_project_${getFileNumber()}.json`;
+        link.href = URL.createObjectURL(blob);
+        link.click();
+      }
+
+      function loadProject(e) {
+        const file = e.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          try {
+            const project = JSON.parse(event.target.result);
+
+            if (project.version !== 1) {
+              alert("Unsupported project version");
+              return;
+            }
+
+            const img = new Image();
+            img.onload = function () {
+              originalImage = img;
+
+              document.getElementById("paddingSlider").value = project.settings.padding;
+              document.getElementById("cropSlider").value = project.settings.cropSize;
+              document.getElementById("offsetX").value = project.settings.offsetX;
+              document.getElementById("offsetY").value = project.settings.offsetY;
+              document.getElementById("contrastSlider").value = project.settings.contrast;
+              document.getElementById("fileNumber").value = project.settings.fileNumber;
+
+              document.getElementById("processingControls").classList.remove("hidden");
+              document.getElementById("editingControls").classList.remove("hidden");
+
+              processImage();
+
+              if (project.outputData) {
+                setTimeout(() => {
+                  outputImageData = new ImageData(
+                    new Uint8ClampedArray(project.outputData),
+                    MATRIX_SIZE,
+                    MATRIX_SIZE,
+                  );
+                  renderOutput();
+                  extractPalette();
+                  saveToHistory();
+                }, 100);
+              }
+            };
+            img.src = project.sourceImage;
+          } catch (err) {
+            alert("Failed to load project: " + err.message);
+          }
+        };
+        reader.readAsText(file);
+      }
+    </script>
+  </body>
+</html>

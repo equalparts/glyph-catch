@@ -1,0 +1,431 @@
+package dev.equalparts.glyph_catch.gameplay
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.text.format.DateFormat
+import android.util.Log
+import androidx.core.content.edit
+import androidx.core.graphics.createBitmap
+import com.nothing.ketchum.GlyphMatrixFrame
+import com.nothing.ketchum.GlyphMatrixManager
+import com.nothing.ketchum.GlyphMatrixObject
+import com.nothing.ketchum.GlyphMatrixUtils
+import dev.equalparts.glyph_catch.data.CaughtPokemon
+import dev.equalparts.glyph_catch.data.EvolutionRequirement
+import dev.equalparts.glyph_catch.data.Pokemon
+import dev.equalparts.glyph_catch.data.PokemonDatabase
+import dev.equalparts.glyph_catch.data.PreferencesManager
+import dev.equalparts.glyph_catch.gameplay.spawner.GameplayContext
+import dev.equalparts.glyph_catch.gameplay.spawner.SpawnResult
+import dev.equalparts.glyph_catch.gameplay.spawner.SpawnRulesEngine
+import dev.equalparts.glyph_catch.gameplay.spawner.createSpawnRules
+import dev.equalparts.glyph_catch.util.GlyphMatrixService
+import dev.equalparts.glyph_catch.util.PokemonSpriteUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.util.Calendar
+import java.util.Locale
+import kotlin.math.floor
+import kotlin.random.Random
+
+/**
+ * Simplified spawn data for persistence.
+ */
+@Serializable
+data class PersistentSpawn(
+    val pokemonId: Int,
+    val poolName: String,
+    val isSpecial: Boolean,
+    val isConditional: Boolean,
+    val screenOffDurationMinutes: Int
+)
+
+/**
+ * The interactive Glyph Toy.
+ */
+class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
+
+    private val spawnQueue = mutableListOf<SpawnResult>()
+    private lateinit var gameplayContext: GameplayContext
+    private lateinit var spawnEngine: SpawnRulesEngine
+    private var coroutineScope: CoroutineScope? = null
+    private lateinit var db: PokemonDatabase
+    private lateinit var preferencesManager: PreferencesManager
+
+    /**
+     * Called by the system when the service is first created.
+     */
+    override fun onCreate() {
+        super.onCreate()
+        db = PokemonDatabase.getInstance(applicationContext)
+        preferencesManager = PreferencesManager(applicationContext)
+        coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+        val weatherProvider = WeatherProviderFactory.create(applicationContext)
+        gameplayContext = GameplayContext(applicationContext, weatherProvider, spawnQueue)
+
+        val spawnRules = createSpawnRules(gameplayContext)
+        spawnEngine = SpawnRulesEngine(spawnRules)
+    }
+
+    /**
+     * Called by the system when the service is no longer used and is being removed.
+     */
+    override fun onDestroy() {
+        super.onDestroy()
+        coroutineScope?.cancel()
+        coroutineScope = null
+    }
+
+    /**
+     * Called by the system when the Glyph Toy is activated.
+     */
+    override fun performOnServiceConnected(context: Context, glyphMatrixManager: GlyphMatrixManager) {
+        restoreSpawnQueue()
+        tick()
+    }
+
+    /**
+     * Called by the system when the Glyph Toy is deactivated.
+     */
+    override fun performOnServiceDisconnected(context: Context) {
+        super.performOnServiceDisconnected(context)
+        saveSpawnQueue()
+    }
+
+    /**
+     * Called by the system at every full minute mark: 10:30:00, 10:31:00, etc.
+     */
+    override fun onAodTick() {
+        tick()
+    }
+
+    /**
+     * Updates the game / display state. Might spawn a new Pokémon.
+     */
+    private fun tick() {
+        gameplayContext.phone.refresh()
+        gameplayContext.trainer.refresh()
+
+        if (!preferencesManager.glyphToyHasTicked) {
+            preferencesManager.glyphToyHasTicked = true
+        }
+
+        if (Random.Default.nextFloat() < getSpawnChance()) {
+            val spawn = spawnEngine.spawn(gameplayContext.phone.minutesOff)
+            if (spawn != null) {
+                addToQueue(spawn)
+            }
+        }
+
+        updateGlyphMatrix()
+    }
+
+    /**
+     * Returns the probability for a Pokémon to spawn on the next tick.
+     */
+    private fun getSpawnChance(): Double = when {
+        gameplayContext.trainer.pokedexCount == 0 && spawnQueue.isEmpty() -> 0.2
+        gameplayContext.sleep.isDuringSleepWindow -> 0.005
+        gameplayContext.phone.minutesOff > 30 -> 0.025
+        gameplayContext.phone.minutesOff > 5 -> 0.01
+        else -> 0.0
+    }
+
+    /**
+     * Adds a spawn to the queue, removing oldest non-special spawns if needed.
+     */
+    private fun addToQueue(spawn: SpawnResult) {
+        synchronized(spawnQueue) {
+            if (spawnQueue.size >= MAX_QUEUE_SIZE) {
+                val indexToRemove = spawnQueue.indexOfFirst { !it.pool.isSpecial }
+                if (indexToRemove != -1) {
+                    val removed = spawnQueue.removeAt(indexToRemove)
+                    Log.d(TAG, "Removed ${removed.pokemon.name} from queue (not special)")
+                } else {
+                    Log.d(TAG, "Queue full of special spawns, not adding ${spawn.pokemon.name}")
+                    return
+                }
+            }
+
+            spawnQueue.add(spawn)
+            Log.d(TAG, "Spawned ${spawn.pokemon.name} from ${spawn.pool.name} pool")
+            Log.d(TAG, "Queue size: ${spawnQueue.size}")
+
+            sortQueueByRarity()
+        }
+        saveSpawnQueue()
+    }
+
+    /**
+     * Sorts the spawn queue by rarity. Ensures the most interesting Pokémon is visible right away.
+     */
+    private fun sortQueueByRarity() {
+        spawnQueue.sortWith(
+            compareBy(
+                { !it.pool.isSpecial }, // Special spawns first (false < true)
+                { !it.pool.isConditional }, // Then conditional spawns
+                { -it.pokemon.id } // Then by descending Pokédex number
+            )
+        )
+    }
+
+    /**
+     * Shows the current Pokémon or digital clock on the Glyph Matrix.
+     */
+    private fun updateGlyphMatrix() {
+        val currentSpawn = synchronized(spawnQueue) {
+            spawnQueue.firstOrNull()
+        }
+
+        if (currentSpawn != null) {
+            showPokemon(currentSpawn)
+        } else {
+            showDigitalWatch()
+        }
+    }
+
+    /**
+     * Show the sprite of a spawned Pokémon on the Glyph Matrix.
+     */
+    private fun showPokemon(spawn: SpawnResult) {
+        glyphMatrixManager?.let { gmm ->
+            val resourceId = PokemonSpriteUtils.getSpriteResourceId(applicationContext, spawn.pokemon.id)
+            val drawable = resources.getDrawable(resourceId, null)
+
+            val sprite = GlyphMatrixObject.Builder()
+                .setImageSource(GlyphMatrixUtils.drawableToBitmap(drawable))
+                .build()
+
+            val frame = GlyphMatrixFrame.Builder()
+                .addTop(sprite)
+                .build(applicationContext)
+
+            gmm.setMatrixFrame(frame.render())
+        }
+    }
+
+    /**
+     * Show a digital clock on the Glyph Matrix.
+     */
+    private fun showDigitalWatch() {
+        // TODO move to separate class
+        val charHeight = 5
+        val charSpacing = 1
+
+        glyphMatrixManager?.let { gmm ->
+            val currentTime = Calendar.getInstance()
+            val timeText = if (DateFormat.is24HourFormat(applicationContext)) {
+                val hour = currentTime.get(Calendar.HOUR_OF_DAY)
+                val minute = currentTime.get(Calendar.MINUTE)
+                String.format(Locale.US, "%02d:%02d", hour, minute)
+            } else {
+                val hour = currentTime.get(Calendar.HOUR)
+                val minute = currentTime.get(Calendar.MINUTE)
+                val displayHour = if (hour == 0) 12 else hour
+                String.format(Locale.US, "%d:%02d", displayHour, minute)
+            }
+
+            fun getTextPixelWidth(text: String): Int {
+                var width = 0
+                for (i in text.indices) {
+                    width += when (text[i]) {
+                        ':' -> 1
+                        '1' -> 3
+                        else -> 4
+                    }
+                    if (i < text.length - 1) {
+                        width += charSpacing
+                    }
+                }
+                return width
+            }
+
+            val timeX = MATRIX_CENTER - getTextPixelWidth(timeText) / 2
+            val timeY = MATRIX_CENTER - charHeight / 2
+
+            val text = GlyphMatrixObject.Builder()
+                .setText(timeText)
+                .setPosition(timeX, timeY)
+                .setBrightness(255)
+                .build()
+
+            val frame = GlyphMatrixFrame.Builder()
+                .addTop(text)
+                .build(applicationContext)
+
+            gmm.setMatrixFrame(frame.render())
+        }
+    }
+
+    /**
+     * Called by the system when the user presses the touch button.
+     */
+    override fun onTouchPointLongPress() {
+        Log.d(TAG, "Touch point long press detected")
+        coroutineScope?.launch {
+            val currentSpawn = synchronized(spawnQueue) {
+                spawnQueue.firstOrNull()
+            }
+            if (currentSpawn != null) {
+                catchPokemon(currentSpawn)
+            }
+        }
+    }
+
+    /**
+     * Catches the currently spawned Pokémon.
+     */
+    private suspend fun catchPokemon(spawn: SpawnResult) {
+        Log.d(TAG, "Catching ${spawn.pokemon.name}!")
+
+        try {
+            val caughtPokemon = CaughtPokemon(
+                speciesId = spawn.pokemon.id,
+                level = randomLevelForSpecies(spawn.pokemon.id),
+                exp = 0,
+                screenOffDurationMinutes = spawn.screenOffDurationMinutes,
+                spawnPoolName = spawn.pool.name,
+                isSpecialSpawn = spawn.pool.name.contains("special", ignoreCase = true),
+                isConditionalSpawn = spawn.pool.name.contains("event", ignoreCase = true)
+            )
+            db.pokemonDao().insert(caughtPokemon)
+            Log.d(TAG, "Successfully saved ${spawn.pokemon.name} to database")
+
+            synchronized(spawnQueue) {
+                spawnQueue.remove(spawn)
+            }
+            saveSpawnQueue()
+
+            showCatchAnimation()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving caught Pokémon", e)
+        }
+    }
+
+    /**
+     * Plays a brief animation on the Glyph Matrix to confirm a successful catch.
+     */
+    private suspend fun showCatchAnimation() {
+        glyphMatrixManager?.let { gmm ->
+            val flash = GlyphMatrixObject.Builder()
+                .setImageSource(createFlashBitmap())
+                .build()
+
+            val frame = GlyphMatrixFrame.Builder()
+                .addTop(flash)
+                .build(applicationContext)
+
+            gmm.setMatrixFrame(frame.render())
+            delay(300)
+
+            clearDisplay()
+            delay(500)
+        }
+
+        updateGlyphMatrix()
+    }
+
+    private fun clearDisplay() {
+        glyphMatrixManager?.setMatrixFrame(IntArray(625))
+    }
+
+    private fun createFlashBitmap(): Bitmap = createBitmap(25, 25).apply {
+        eraseColor(android.graphics.Color.WHITE)
+    }
+
+    /**
+     * Saves the current spawn queue to SharedPreferences.
+     */
+    private fun saveSpawnQueue() {
+        synchronized(spawnQueue) {
+            val persistentSpawns = spawnQueue.map { spawn ->
+                PersistentSpawn(
+                    pokemonId = spawn.pokemon.id,
+                    poolName = spawn.pool.name,
+                    isSpecial = spawn.pool.isSpecial,
+                    isConditional = spawn.pool.isConditional,
+                    screenOffDurationMinutes = spawn.screenOffDurationMinutes
+                )
+            }
+
+            val json = Json.encodeToString(persistentSpawns)
+            applicationContext.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .edit {
+                    putString(KEY_SPAWN_QUEUE, json)
+                }
+            Log.d(TAG, "Saved ${persistentSpawns.size} spawns to storage")
+        }
+    }
+
+    /**
+     * Restores the spawn queue from SharedPreferences.
+     */
+    private fun restoreSpawnQueue() {
+        synchronized(spawnQueue) {
+            spawnQueue.clear()
+
+            val prefs = applicationContext.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            val json = prefs.getString(KEY_SPAWN_QUEUE, null) ?: return
+
+            try {
+                val persistentSpawns: List<PersistentSpawn> = Json.decodeFromString(json)
+                persistentSpawns.forEach { persistent ->
+                    val pokemon = Pokemon.all[persistent.pokemonId]
+                    if (pokemon != null) {
+                        val pool = spawnEngine.rules.pools.find { it.name == persistent.poolName }!!
+                        spawnQueue.add(
+                            SpawnResult(
+                                pokemon = pokemon,
+                                pool = pool,
+                                screenOffDurationMinutes = persistent.screenOffDurationMinutes
+                            )
+                        )
+                    }
+                }
+                Log.d(TAG, "Restored ${spawnQueue.size} spawns from storage")
+                sortQueueByRarity()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error restoring spawn queue", e)
+                prefs.edit { remove(KEY_SPAWN_QUEUE) }
+            }
+        }
+    }
+
+    private fun randomLevelForSpecies(speciesId: Int): Int {
+        val species = Pokemon[speciesId] ?: return Random.nextInt(18, 41)
+        val nextLevelRequirement = species.evolvesTo
+            .mapNotNull { Pokemon[it] }
+            .mapNotNull { (it.evolutionRequirement as? EvolutionRequirement.Level)?.level }
+            .minOrNull()
+
+        if (nextLevelRequirement != null && nextLevelRequirement > 2) {
+            val minExclusive = floor(nextLevelRequirement * 0.5).toInt()
+            val minLevel = (minExclusive + 1).coerceAtLeast(1)
+            val maxLevel = (nextLevelRequirement - 2).coerceAtLeast(minLevel)
+
+            return if (maxLevel >= minLevel) {
+                Random.nextInt(minLevel, maxLevel + 1)
+            } else {
+                minLevel
+            }
+        }
+
+        return Random.nextInt(18, 41)
+    }
+    companion object {
+        private const val TAG = "PokemonGlyphToy"
+        private const val MAX_QUEUE_SIZE = 3
+        private const val PREFS_NAME = "pokemon_glyph_toy_prefs"
+        private const val KEY_SPAWN_QUEUE = "spawn_queue"
+
+        private const val MATRIX_SIZE = 25 // 25x25 circular display
+        private const val MATRIX_CENTER = MATRIX_SIZE / 2 // Center index (12, which is the 13th pixel)
+    }
+}
