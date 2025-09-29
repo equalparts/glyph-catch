@@ -5,7 +5,7 @@
 
 ### A Pokémon fan-game for the Nothing Phone 3
 
-Glyph Catch is a fan-made Pokémon catching game for the Nothing Phone 3 with is Glyph Matrix display. Leave your phone face-down for a while and Pokémon will appear on the Glyph Matrix. Long-press the touch button to catch the Pokémon and complete your Pokédex!
+Glyph Catch is a fan-made Pokémon catching game for the Nothing Phone 3 with its Glyph Matrix display. Leave your phone face-down for a while and Pokémon will appear on the Glyph Matrix. Long-press the touch button to catch the Pokémon and complete your Pokédex!
 
 ![Screenshots: home screen, Pokédex screen, caught Pokémon screen, Glyph Toy screen](/visual.png)
 
@@ -15,7 +15,7 @@ The included Glyph Toy must be configured as your Always-on Glyph Toy for the ga
 
 The longer your phone stays face-down, the rarer the Pokémon you might encounter. The type of Pokémon that appear can also be influenced by a variety of real-world conditions, like current weather, festive seasons, or even your phone's battery level. Keep an eye on the `Daily trainer tips` for hints!
 
-### Installation
+### Download & install
 
 > [!WARNING]
 > This is a beta release. There might be some bugs and some features are "Coming soon".
