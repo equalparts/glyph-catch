@@ -29,16 +29,25 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > ${{ github.workspace }}/app/release.keystore
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       - name: Assemble release APK
+        env:
+          KEYSTORE_FILE: ${{ github.workspace }}/app/release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew :app:assembleRelease
 
       - name: Rename APK
         run: |
           cd app/build/outputs/apk/release
-          mv app-release-unsigned.apk glyph-catch-${{ github.ref_name }}.apk
+          mv app-release.apk glyph-catch-${{ github.ref_name }}.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
