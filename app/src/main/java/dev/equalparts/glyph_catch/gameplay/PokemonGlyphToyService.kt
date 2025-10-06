@@ -140,10 +140,10 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     private fun getSpawnChance(): Double = when {
         gameplayContext.trainer.pokedexCount == 0 && spawnQueue.isEmpty() -> 0.2
-        gameplayContext.sleep.isDuringSleepWindow -> 1.0
+        gameplayContext.sleep.isDuringSleepWindow -> 0.005
         gameplayContext.phone.minutesOff > 30 -> 0.025
         gameplayContext.phone.minutesOff > 5 -> 0.01
-        else -> 1.0
+        else -> 0.0
     }
 
     /**
