@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -7,6 +8,15 @@ plugins {
     id("com.google.devtools.ksp")
     alias(libs.plugins.ktlint)
     kotlin("plugin.serialization") version "2.0.21"
+}
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = if (keystorePropertiesFile.exists()) {
+    Properties().apply {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+} else {
+    null
 }
 
 android {
@@ -29,14 +39,24 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("KEY_ALIAS")
-            keyPassword = System.getenv("KEY_PASSWORD")
+            if (keystoreProperties != null) {
+                storeFile = rootProject.file(keystoreProperties.getProperty("releaseKeystoreFile"))
+                storePassword = keystoreProperties.getProperty("releaseKeystorePassword")
+                keyAlias = keystoreProperties.getProperty("releaseKeyAlias")
+                keyPassword = keystoreProperties.getProperty("releaseKeyPassword")
+            } else {
+                storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
         }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("release")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
