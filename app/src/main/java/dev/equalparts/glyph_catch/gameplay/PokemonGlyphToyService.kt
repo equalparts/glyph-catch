@@ -1,38 +1,35 @@
 package dev.equalparts.glyph_catch.gameplay
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.text.format.DateFormat
 import android.util.Log
 import androidx.core.content.edit
-import androidx.core.graphics.createBitmap
 import com.nothing.ketchum.GlyphMatrixFrame
 import com.nothing.ketchum.GlyphMatrixManager
 import com.nothing.ketchum.GlyphMatrixObject
-import com.nothing.ketchum.GlyphMatrixUtils
 import dev.equalparts.glyph_catch.data.CaughtPokemon
 import dev.equalparts.glyph_catch.data.EvolutionRequirement
 import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.data.PokemonDatabase
 import dev.equalparts.glyph_catch.data.PreferencesManager
+import dev.equalparts.glyph_catch.gameplay.animation.AnimationCoordinator
+import dev.equalparts.glyph_catch.gameplay.animation.GlyphMatrixHelper
 import dev.equalparts.glyph_catch.gameplay.spawner.GameplayContext
 import dev.equalparts.glyph_catch.gameplay.spawner.SpawnResult
 import dev.equalparts.glyph_catch.gameplay.spawner.SpawnRulesEngine
 import dev.equalparts.glyph_catch.gameplay.spawner.createSpawnRules
 import dev.equalparts.glyph_catch.util.GlyphMatrixService
-import dev.equalparts.glyph_catch.util.PokemonSpriteUtils
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.floor
 import kotlin.random.Random
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
  * Simplified spawn data for persistence.
@@ -57,6 +54,9 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     private var coroutineScope: CoroutineScope? = null
     private lateinit var db: PokemonDatabase
     private lateinit var preferencesManager: PreferencesManager
+    private lateinit var frameFactory: GlyphMatrixHelper
+    private lateinit var animationCoordinator: AnimationCoordinator
+    private var displayedSpawn: SpawnResult? = null
 
     /**
      * Called by the system when the service is first created.
@@ -66,6 +66,11 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         db = PokemonDatabase.getInstance(applicationContext)
         preferencesManager = PreferencesManager(applicationContext)
         coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+        frameFactory = GlyphMatrixHelper(applicationContext, GLYPH_MATRIX_SIZE)
+        animationCoordinator = AnimationCoordinator(frameFactory) {
+            glyphMatrixManager ?: error("GlyphMatrixManager not connected")
+        }
 
         val weatherProvider = WeatherProviderFactory.create(applicationContext)
         gameplayContext = GameplayContext(applicationContext, weatherProvider, spawnQueue)
@@ -79,6 +84,9 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     override fun onDestroy() {
         super.onDestroy()
+        if (::animationCoordinator.isInitialized) {
+            animationCoordinator.cancelActive()
+        }
         coroutineScope?.cancel()
         coroutineScope = null
     }
@@ -132,10 +140,10 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     private fun getSpawnChance(): Double = when {
         gameplayContext.trainer.pokedexCount == 0 && spawnQueue.isEmpty() -> 0.2
-        gameplayContext.sleep.isDuringSleepWindow -> 0.005
+        gameplayContext.sleep.isDuringSleepWindow -> 1.0
         gameplayContext.phone.minutesOff > 30 -> 0.025
         gameplayContext.phone.minutesOff > 5 -> 0.01
-        else -> 0.0
+        else -> 1.0
     }
 
     /**
@@ -184,9 +192,27 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             spawnQueue.firstOrNull()
         }
 
+        if (::animationCoordinator.isInitialized && animationCoordinator.isAnimating) {
+            return
+        }
+
         if (currentSpawn != null) {
-            showPokemon(currentSpawn)
+            if (displayedSpawn !== currentSpawn) {
+                val scope = coroutineScope
+                if (scope != null) {
+                    animationCoordinator.playSpawn(
+                        scope = scope,
+                        spawn = currentSpawn,
+                        onDisplayed = { displayedSpawn = it }
+                    )
+                } else {
+                    showPokemon(currentSpawn)
+                }
+            } else {
+                showPokemon(currentSpawn)
+            }
         } else {
+            displayedSpawn = null
             showDigitalWatch()
         }
     }
@@ -195,20 +221,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      * Show the sprite of a spawned Pokémon on the Glyph Matrix.
      */
     private fun showPokemon(spawn: SpawnResult) {
-        glyphMatrixManager?.let { gmm ->
-            val resourceId = PokemonSpriteUtils.getSpriteResourceId(applicationContext, spawn.pokemon.id)
-            val drawable = resources.getDrawable(resourceId, null)
-
-            val sprite = GlyphMatrixObject.Builder()
-                .setImageSource(GlyphMatrixUtils.drawableToBitmap(drawable))
-                .build()
-
-            val frame = GlyphMatrixFrame.Builder()
-                .addTop(sprite)
-                .build(applicationContext)
-
-            gmm.setMatrixFrame(frame.render())
-        }
+        animationCoordinator.showPokemon(spawn.pokemon.id)
+        displayedSpawn = spawn
     }
 
     /**
@@ -247,8 +261,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                 return width
             }
 
-            val timeX = MATRIX_CENTER - getTextPixelWidth(timeText) / 2
-            val timeY = MATRIX_CENTER - charHeight / 2
+            val timeX = GLYPH_MATRIX_CENTER - getTextPixelWidth(timeText) / 2
+            val timeY = GLYPH_MATRIX_CENTER - charHeight / 2
 
             val text = GlyphMatrixObject.Builder()
                 .setText(timeText)
@@ -303,6 +317,9 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             }
             saveSpawnQueue()
 
+            animationCoordinator.cancelActive()
+            displayedSpawn = null
+
             showCatchAnimation()
         } catch (e: Exception) {
             Log.e(TAG, "Error saving caught Pokémon", e)
@@ -313,31 +330,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      * Plays a brief animation on the Glyph Matrix to confirm a successful catch.
      */
     private suspend fun showCatchAnimation() {
-        glyphMatrixManager?.let { gmm ->
-            val flash = GlyphMatrixObject.Builder()
-                .setImageSource(createFlashBitmap())
-                .build()
-
-            val frame = GlyphMatrixFrame.Builder()
-                .addTop(flash)
-                .build(applicationContext)
-
-            gmm.setMatrixFrame(frame.render())
-            delay(300)
-
-            clearDisplay()
-            delay(500)
-        }
-
+        animationCoordinator.playCatch()
         updateGlyphMatrix()
-    }
-
-    private fun clearDisplay() {
-        glyphMatrixManager?.setMatrixFrame(IntArray(625))
-    }
-
-    private fun createFlashBitmap(): Bitmap = createBitmap(25, 25).apply {
-        eraseColor(android.graphics.Color.WHITE)
     }
 
     /**
@@ -370,6 +364,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     private fun restoreSpawnQueue() {
         synchronized(spawnQueue) {
             spawnQueue.clear()
+            displayedSpawn = null
 
             val prefs = applicationContext.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
             val json = prefs.getString(KEY_SPAWN_QUEUE, null) ?: return
@@ -424,8 +419,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         private const val MAX_QUEUE_SIZE = 3
         private const val PREFS_NAME = "pokemon_glyph_toy_prefs"
         private const val KEY_SPAWN_QUEUE = "spawn_queue"
-
-        private const val MATRIX_SIZE = 25 // 25x25 circular display
-        private const val MATRIX_CENTER = MATRIX_SIZE / 2 // Center index (12, which is the 13th pixel)
+        private const val GLYPH_MATRIX_SIZE = 25 // 25x25 circular display
+        private const val GLYPH_MATRIX_CENTER = GLYPH_MATRIX_SIZE / 2 // Center index (12, which is the 13th pixel)
     }
 }
