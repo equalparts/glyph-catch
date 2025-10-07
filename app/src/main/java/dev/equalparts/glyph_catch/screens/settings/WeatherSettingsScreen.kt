@@ -56,9 +56,9 @@ import dev.equalparts.glyph_catch.data.PreferencesManager
 import dev.equalparts.glyph_catch.data.WeatherConnectionStatus
 import dev.equalparts.glyph_catch.gameplay.WeatherProviderFactory
 import dev.equalparts.glyph_catch.util.LocationHelper
-import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.launch
 
 private data class WeatherUiState(
     val useOpenWeather: Boolean,

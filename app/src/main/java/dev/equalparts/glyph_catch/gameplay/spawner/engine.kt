@@ -54,7 +54,10 @@ class SpawnRulesEngine(val rules: SpawnRules, private val random: Random = Rando
     private fun createSpawnResult(pool: SpawnPool, screenOffDurationMinutes: Int): SpawnResult? {
         val pokemon = selectRandomPokemon(pool) ?: return null
         return SpawnResult(
-            pokemon, pool, screenOffDurationMinutes, System.currentTimeMillis()
+            pokemon,
+            pool,
+            screenOffDurationMinutes,
+            System.currentTimeMillis()
         )
     }
 
