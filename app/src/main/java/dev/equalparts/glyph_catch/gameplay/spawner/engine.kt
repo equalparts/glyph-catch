@@ -36,11 +36,25 @@ class SpawnRulesEngine(val rules: SpawnRules, private val random: Random = Rando
      */
     fun spawn(screenOffDurationMinutes: Int): SpawnResult? {
         val pool = selectRandomPool() ?: return null
+        return createSpawnResult(pool, screenOffDurationMinutes)
+    }
+
+    /**
+     * Like [spawn], but picks a Pokémon from a specific pool (if active).
+     */
+    fun spawnFromPool(poolName: String, screenOffDurationMinutes: Int): SpawnResult? {
+        val pool = rules.pools.find { it.name.equals(poolName, ignoreCase = true) } ?: return null
+        return if (pool.isActive()) {
+            createSpawnResult(pool, screenOffDurationMinutes)
+        } else {
+            null
+        }
+    }
+
+    private fun createSpawnResult(pool: SpawnPool, screenOffDurationMinutes: Int): SpawnResult? {
         val pokemon = selectRandomPokemon(pool) ?: return null
         return SpawnResult(
-            pokemon = pokemon,
-            pool = pool,
-            screenOffDurationMinutes = screenOffDurationMinutes
+            pokemon, pool, screenOffDurationMinutes, System.currentTimeMillis()
         )
     }
 
@@ -127,4 +141,9 @@ class SpawnRulesEngine(val rules: SpawnRules, private val random: Random = Rando
     }
 }
 
-data class SpawnResult(val pokemon: PokemonSpecies, val pool: SpawnPool, val screenOffDurationMinutes: Int)
+data class SpawnResult(
+    val pokemon: PokemonSpecies,
+    val pool: SpawnPool,
+    val screenOffDurationMinutes: Int,
+    val spawnedAtMillis: Long
+)

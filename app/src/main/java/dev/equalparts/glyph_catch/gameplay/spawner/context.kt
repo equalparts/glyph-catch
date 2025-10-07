@@ -139,6 +139,7 @@ data class GameplayContext(
     inner class PhoneState {
         var minutesOff: Int = 0
         var battery: Int = 100
+        var isInteractive: Boolean = false
 
         val minutesOffForSpawns: Int
             get() = sleep.minutesOutsideSleep
@@ -152,16 +153,17 @@ data class GameplayContext(
 
             battery = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
 
-            val isInteractive = powerManager.isInteractive
+            val interactive = powerManager.isInteractive
+            isInteractive = interactive
 
-            if (isInteractive) {
+            if (interactive) {
                 minutesOff = 0
             } else {
                 minutesOff++
             }
 
             val now = ZonedDateTime.now()
-            sleep.refresh(now, isInteractive, minutesOff)
+            sleep.refresh(now, interactive, minutesOff)
         }
     }
 
@@ -271,7 +273,9 @@ data class GameplayContext(
          */
         fun hasNotFound(species: PokemonSpecies): Boolean = runBlocking {
             val db = PokemonDatabase.getInstance(applicationContext)
-            if (db.pokemonDao().countBySpeciesId(species.id) > 0) return@runBlocking false
+            if (db.pokemonDao().countBySpeciesId(species.id) > 0) {
+                return@runBlocking false
+            }
             return@runBlocking spawnQueue.none { it.pokemon.id == species.id }
         }
 
