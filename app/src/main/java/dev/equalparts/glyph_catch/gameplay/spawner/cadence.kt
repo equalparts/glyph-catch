@@ -91,7 +91,7 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
             val request = RerollRequest(
                 poolName = pool.name,
                 rerolls = rule.rerolls,
-                priority = poolPriority(pool.name),
+                priority = rerollPriority[pool.name] ?: 0,
                 waitedMillis = waitedMillis
             )
 
@@ -111,14 +111,10 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
         }
     }
 
-    private fun poolPriority(poolName: String): Int = rerollPriority[poolName] ?: 0
-
     private fun SpawnPool.isEligibleForReroll(): Boolean = !isSpecial && !isConditional && basePercentage > 0f
 
     private data class ScreenOffChanceRule(val minMinutesOff: Int, val baseChance: Double)
-
     private data class RerollRule(val minWaitMillis: Long, val rerolls: Int)
-
     private data class RerollRequest(val poolName: String, val rerolls: Int, val priority: Int, val waitedMillis: Long)
 
     companion object {
