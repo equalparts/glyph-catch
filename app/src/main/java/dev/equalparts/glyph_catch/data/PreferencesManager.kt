@@ -4,9 +4,12 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Manages app preferences including weather provider settings.
@@ -57,6 +60,18 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_GLYPH_TOY_TICKED, false)
         set(value) = prefs.edit { putBoolean(KEY_GLYPH_TOY_TICKED, value) }
 
+    var hasDiscoveredSuperRod: Boolean
+        get() = prefs.getBoolean(KEY_SUPER_ROD_DISCOVERED, false)
+        set(value) = prefs.edit { putBoolean(KEY_SUPER_ROD_DISCOVERED, value) }
+
+    var isSuperRodIndicatorDismissed: Boolean
+        get() = prefs.getBoolean(KEY_SUPER_ROD_INDICATOR_DISMISSED, false)
+        set(value) = prefs.edit { putBoolean(KEY_SUPER_ROD_INDICATOR_DISMISSED, value) }
+
+    var sleepBonusExpiresAt: Long
+        get() = prefs.getLong(KEY_SLEEP_BONUS_EXPIRES_AT, 0L)
+        set(value) = prefs.edit { putLong(KEY_SLEEP_BONUS_EXPIRES_AT, value) }
+
     fun watchGlyphToyHasTicked(): Flow<Boolean> = callbackFlow {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
             if (changedKey == KEY_GLYPH_TOY_TICKED) {
@@ -69,6 +84,70 @@ class PreferencesManager(context: Context) {
 
         awaitClose { unregisterListener(listener) }
     }
+
+    fun shouldShowSuperRodIndicator(): Boolean = hasDiscoveredSuperRod && !isSuperRodIndicatorDismissed
+
+    fun watchSuperRodIndicator(): Flow<Boolean> = callbackFlow {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+            if (changedKey == null || changedKey in SUPER_ROD_KEYS) {
+                trySend(shouldShowSuperRodIndicator())
+            }
+        }
+
+        trySend(shouldShowSuperRodIndicator())
+        registerListener(listener)
+
+        awaitClose { unregisterListener(listener) }
+    }.distinctUntilChanged()
+
+    fun markSuperRodDiscovered() {
+        if (!hasDiscoveredSuperRod) {
+            hasDiscoveredSuperRod = true
+            isSuperRodIndicatorDismissed = false
+        }
+    }
+
+    fun markSuperRodIndicatorSeen() {
+        if (!isSuperRodIndicatorDismissed) {
+            isSuperRodIndicatorDismissed = true
+        }
+    }
+
+    fun isSleepBonusActive(now: Long = System.currentTimeMillis()): Boolean = sleepBonusExpiresAt > now
+
+    fun watchSleepBonusStatus(): Flow<Boolean> = callbackFlow {
+        fun emitStatus() {
+            trySend(isSleepBonusActive())
+        }
+
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+            if (changedKey == null || changedKey == KEY_SLEEP_BONUS_EXPIRES_AT) {
+                emitStatus()
+            }
+        }
+
+        emitStatus()
+        registerListener(listener)
+
+        val tickerJob = launch {
+            while (isActive) {
+                val now = System.currentTimeMillis()
+                val expiresAt = sleepBonusExpiresAt
+                val delayMillis = if (expiresAt <= now) {
+                    SLEEP_BONUS_POLL_INACTIVE_MILLIS
+                } else {
+                    (expiresAt - now).coerceIn(1_000L, SLEEP_BONUS_POLL_ACTIVE_MILLIS)
+                }
+                delay(delayMillis)
+                emitStatus()
+            }
+        }
+
+        awaitClose {
+            unregisterListener(listener)
+            tickerJob.cancel()
+        }
+    }.distinctUntilChanged()
 
     fun hasValidWeatherConfig(): Boolean = !openWeatherMapApiKey.isNullOrBlank() &&
         weatherLatitude != 0f &&
@@ -114,14 +193,24 @@ class PreferencesManager(context: Context) {
         private const val KEY_BEDTIME_MINUTES = "bedtime_minutes"
         private const val KEY_PLAYER_START_DATE = "player_start_date"
         private const val KEY_GLYPH_TOY_TICKED = "glyph_toy_has_ticked"
+        private const val KEY_SUPER_ROD_DISCOVERED = "super_rod_discovered"
+        private const val KEY_SUPER_ROD_INDICATOR_DISMISSED = "super_rod_indicator_dismissed"
+        private const val KEY_SLEEP_BONUS_EXPIRES_AT = "sleep_bonus_expires_at"
         private const val MINUTES_PER_DAY = 24 * 60
         private const val DEFAULT_BEDTIME_MINUTES = 23 * 60
+        private const val SLEEP_BONUS_POLL_ACTIVE_MILLIS = 30_000L
+        private const val SLEEP_BONUS_POLL_INACTIVE_MILLIS = 60_000L
 
         private val WEATHER_CONFIG_KEYS = setOf(
             KEY_USE_OPENWEATHER,
             KEY_OPENWEATHER_API,
             KEY_WEATHER_LAT,
             KEY_WEATHER_LON
+        )
+
+        private val SUPER_ROD_KEYS = setOf(
+            KEY_SUPER_ROD_DISCOVERED,
+            KEY_SUPER_ROD_INDICATOR_DISMISSED
         )
     }
 }

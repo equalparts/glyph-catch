@@ -139,6 +139,7 @@ private fun NavDestination?.isRouteSelected(screen: AppScreen): Boolean {
                     route?.startsWith("home/detail") == true ||
                     route == AppScreen.Settings.route
             AppScreen.Caught -> route?.startsWith("caught") == true
+            AppScreen.Inventory -> route?.startsWith("inventory") == true
             else -> route == screen.route
         }
     }

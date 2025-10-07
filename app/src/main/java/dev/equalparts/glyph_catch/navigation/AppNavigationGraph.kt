@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,6 +17,7 @@ import dev.equalparts.glyph_catch.gameplay.WeatherProviderFactory
 import dev.equalparts.glyph_catch.screens.CaughtPokemonDetailScreen
 import dev.equalparts.glyph_catch.screens.CaughtScreen
 import dev.equalparts.glyph_catch.screens.HomeScreen
+import dev.equalparts.glyph_catch.screens.InventoryItemDetailScreen
 import dev.equalparts.glyph_catch.screens.InventoryScreen
 import dev.equalparts.glyph_catch.screens.PokedexScreen
 import dev.equalparts.glyph_catch.screens.SettingsScreen
@@ -50,6 +52,15 @@ fun AppNavigationGraph(navController: NavHostController, db: PokemonDatabase) {
                 },
                 onPokedexClick = {
                     navController.navigate(AppScreen.Pokedex.route)
+                },
+                onBagClick = {
+                    navController.navigate(AppScreen.Inventory.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 },
                 onWeatherSettingsClick = {
                     navController.navigate(AppScreen.Settings.route)
@@ -101,8 +112,33 @@ fun AppNavigationGraph(navController: NavHostController, db: PokemonDatabase) {
         }
 
         composable(AppScreen.Inventory.route) {
-            InventoryScreen(db = db)
+            InventoryScreen(
+                db = db,
+                onItemClick = { item ->
+                    navController.navigateToInventoryItem(item)
+                },
+                onScreenShown = {
+                    preferencesManager.markSuperRodIndicatorSeen()
+                }
+            )
         }
+
+        composable(
+            route = "inventory/detail/{itemId}",
+            arguments = listOf(
+                navArgument("itemId") {
+                    type = NavType.IntType
+                }
+            )
+        ) { backStackEntry ->
+            val itemId = backStackEntry.arguments?.getInt("itemId") ?: return@composable
+            InventoryItemDetailScreen(
+                db = db,
+                itemId = itemId,
+                onBackClick = { navController.navigateUp() }
+            )
+        }
+
         composable(AppScreen.Settings.route) {
             SettingsScreen(
                 onBackClick = { navController.navigateUp() }

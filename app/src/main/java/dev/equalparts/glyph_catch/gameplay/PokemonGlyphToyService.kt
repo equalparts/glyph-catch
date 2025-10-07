@@ -121,6 +121,19 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         gameplayContext.phone.refresh()
         gameplayContext.trainer.refresh()
 
+        if (gameplayContext.sleep.hasSleepBonus) {
+            val now = System.currentTimeMillis()
+            if (preferencesManager.sleepBonusExpiresAt <= now) {
+                preferencesManager.sleepBonusExpiresAt = now + SLEEP_BONUS_DURATION_MILLIS
+            }
+        } else if (preferencesManager.sleepBonusExpiresAt != 0L) {
+            preferencesManager.sleepBonusExpiresAt = 0L
+        }
+
+        coroutineScope?.launch {
+            db.activeItemDao().cleanupExpiredItems()
+        }
+
         if (!preferencesManager.glyphToyHasTicked) {
             preferencesManager.glyphToyHasTicked = true
         }
@@ -419,6 +432,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         private const val MAX_QUEUE_SIZE = 3
         private const val PREFS_NAME = "pokemon_glyph_toy_prefs"
         private const val KEY_SPAWN_QUEUE = "spawn_queue"
+        private const val SLEEP_BONUS_DURATION_MILLIS = 24L * 60 * 60 * 1000
+
         private const val GLYPH_MATRIX_SIZE = 25 // 25x25 circular display
         private const val GLYPH_MATRIX_CENTER = GLYPH_MATRIX_SIZE / 2 // Center index (12, which is the 13th pixel)
     }

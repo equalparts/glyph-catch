@@ -35,6 +35,11 @@
     <string name="home_section_recent_catches">Recent</string>
     <string name="home_empty_recent_catches">No Pokémon caught yet. Pokémon will appear on the Glyph Matrix when your phone is face-down. Long-press the touch button to catch!</string>
     <string name="home_daily_tip_label">Daily trainer tip</string>
+    <string name="home_super_rod_new_banner">Super Rod</string>
+    <string name="home_super_rod_new_badge">New</string>
+    <string name="home_super_rod_active_banner">Using Super Rod</string>
+    <string name="home_super_rod_active_badge">%1$dm left</string>
+    <string name="home_well_rested_banner">Sleep bonus: Rare Pokémon rate up</string>
     <string name="home_weather_clear">Clear weather</string>
     <string name="home_weather_rainy">Rain</string>
     <string name="home_weather_storm">Storm</string>
@@ -45,7 +50,7 @@
     <string name="settings_sleep_title">Sleep &amp; habits</string>
     <string name="settings_weather_provider_random">Random daily weather</string>
     <string name="settings_section_weather_description">Enable live weather sync</string>
-    <string name="settings_section_sleep_description">Set spawn pause window</string>
+    <string name="settings_section_sleep_description">Set bedtime schedule</string>
     <string name="settings_weather_use_live_weather_title">Use live weather</string>
     <string name="settings_weather_provider_openweathermap">OpenWeatherMap</string>
     <string name="settings_weather_section_configure">Configure</string>
@@ -121,7 +126,31 @@
 
     <string name="inventory_title">BAG</string>
     <string name="inventory_empty_title">No items found yet</string>
-    <string name="inventory_empty_subtitle">This feature is coming soon!</string>
+    <string name="inventory_empty_subtitle">Catch more Pokemon to discover useful gear.</string>
+    <string name="inventory_item_title">ITEM DETAILS</string>
+    <string name="inventory_item_missing_title">Item not found</string>
+    <string name="inventory_item_missing_subtitle">Try opening the bag again from a known item.</string>
+    <string name="inventory_item_quantity">%1$dx</string>
+    <string name="inventory_item_effect_duration">Effect: %1$d minutes</string>
+    <string name="inventory_item_active_label">Active (%1$dm remaining)</string>
+    <string name="inventory_item_use_button">Use %1$s</string>
+    <string name="inventory_item_using_button">Using %1$s</string>
+    <string name="inventory_item_cancel_button">Cancel</string>
+    <string name="inventory_item_use_unavailable">This item can\'t be used yet.</string>
+    <string name="item_fire_stone_name">Fire Stone</string>
+    <string name="item_fire_stone_description">Evolves certain Fire-type Pokemon.</string>
+    <string name="item_water_stone_name">Water Stone</string>
+    <string name="item_water_stone_description">Evolves certain Water-type Pokemon.</string>
+    <string name="item_thunder_stone_name">Thunder Stone</string>
+    <string name="item_thunder_stone_description">Evolves certain Electric-type Pokemon.</string>
+    <string name="item_leaf_stone_name">Leaf Stone</string>
+    <string name="item_leaf_stone_description">Evolves certain Grass-type Pokemon.</string>
+    <string name="item_moon_stone_name">Moon Stone</string>
+    <string name="item_moon_stone_description">Triggers special lunar evolutions.</string>
+    <string name="item_sun_stone_name">Sun Stone</string>
+    <string name="item_sun_stone_description">Harnesses sunlight for evolutions.</string>
+    <string name="item_super_rod_name">Super Rod</string>
+    <string name="item_super_rod_description">A fishing rod for catching certain aquatic Pokémon. Effect lasts for 60 minutes.</string>
 
     <string name="pokedex_title">POKÉDEX</string>
     <string name="pokedex_progress_subtitle">%1$d/151</string>

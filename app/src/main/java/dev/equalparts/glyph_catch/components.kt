@@ -39,6 +39,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import dev.equalparts.glyph_catch.data.Item
+import dev.equalparts.glyph_catch.util.ItemSpriteUtils
 import dev.equalparts.glyph_catch.util.PokemonSpriteUtils
 
 @Composable
@@ -158,6 +160,45 @@ fun PokedexSpriteCircle(
 }
 
 @Composable
+fun ItemGlyphCircle(
+    item: Item,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    backgroundColor: Color = CatchColors.Black,
+    size: Dp? = AppSizes.pokemonImageSize
+) {
+    Box(
+        modifier = modifier
+            .then(if (size != null) Modifier.size(size) else Modifier)
+            .clip(CircleShape)
+            .background(backgroundColor),
+        contentAlignment = Alignment.Center
+    ) {
+        val context = LocalContext.current
+        val resourceId = remember(item, context) {
+            ItemSpriteUtils.getMatrixResourceId(context, item)
+        }
+
+        if (resourceId != 0) {
+            Image(
+                painter = painterResource(resourceId),
+                contentDescription = contentDescription,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(AppSizes.spacingTiny),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Text(
+                text = contentDescription.take(1).uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
 fun PokemonSpriteCircle(
     modifier: Modifier = Modifier,
     pokemonId: Int,
@@ -232,6 +273,23 @@ fun PokemonLevelChip(level: Int, modifier: Modifier = Modifier) {
             text = stringResource(R.string.components_level_chip, level),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun AppBadge(text: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(AppSizes.chipCornerRadius))
+            .background(MaterialTheme.colorScheme.primaryContainer)
+            .padding(horizontal = AppSizes.spacingSmall, vertical = AppSizes.spacingMicro)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            fontWeight = FontWeight.Medium
         )
     }
 }

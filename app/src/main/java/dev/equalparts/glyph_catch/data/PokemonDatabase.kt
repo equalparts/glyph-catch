@@ -120,6 +120,9 @@ interface ActiveItemDao {
     @Query("SELECT * FROM active_items WHERE itemId = :itemId AND expiresAt > :now")
     suspend fun getActiveItem(itemId: Int, now: Long = System.currentTimeMillis()): ActiveItem?
 
+    @Query("SELECT * FROM active_items WHERE itemId = :itemId")
+    fun watchActiveItem(itemId: Int): Flow<ActiveItem?>
+
     @Query("SELECT * FROM active_items WHERE expiresAt > :now")
     suspend fun getAllActiveItems(now: Long = System.currentTimeMillis()): List<ActiveItem>
 
@@ -128,6 +131,9 @@ interface ActiveItemDao {
 
     @Query("DELETE FROM active_items WHERE expiresAt <= :now")
     suspend fun cleanupExpiredItems(now: Long = System.currentTimeMillis())
+
+    @Query("DELETE FROM active_items WHERE itemId = :itemId")
+    suspend fun deactivateItem(itemId: Int)
 }
 
 @Database(
