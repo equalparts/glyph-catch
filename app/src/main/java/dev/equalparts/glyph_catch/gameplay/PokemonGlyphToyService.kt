@@ -15,8 +15,11 @@ import dev.equalparts.glyph_catch.data.PreferencesManager
 import dev.equalparts.glyph_catch.gameplay.animation.AnimationCoordinator
 import dev.equalparts.glyph_catch.gameplay.animation.GlyphMatrixHelper
 import dev.equalparts.glyph_catch.gameplay.spawner.GameplayContext
+import dev.equalparts.glyph_catch.gameplay.spawner.SpawnCadenceController
+import dev.equalparts.glyph_catch.gameplay.spawner.SpawnHistoryTracker
 import dev.equalparts.glyph_catch.gameplay.spawner.SpawnResult
 import dev.equalparts.glyph_catch.gameplay.spawner.SpawnRulesEngine
+import dev.equalparts.glyph_catch.gameplay.spawner.SpawnSnapshot
 import dev.equalparts.glyph_catch.gameplay.spawner.createSpawnRules
 import dev.equalparts.glyph_catch.util.GlyphMatrixService
 import java.util.Calendar
@@ -42,7 +45,8 @@ data class PersistentSpawn(
     val poolName: String,
     val isSpecial: Boolean,
     val isConditional: Boolean,
-    val screenOffDurationMinutes: Int
+    val screenOffDurationMinutes: Int,
+    val spawnedAtMillis: Long = System.currentTimeMillis()
 )
 
 /**
@@ -59,6 +63,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     private lateinit var frameFactory: GlyphMatrixHelper
     private lateinit var animationCoordinator: AnimationCoordinator
     private var displayedSpawn: SpawnResult? = null
+    private lateinit var cadenceController: SpawnCadenceController
+    private lateinit var spawnHistory: SpawnHistoryTracker
     private var localClockJob: Job? = null
     private var aodActive = false
 
@@ -81,6 +87,14 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
 
         val spawnRules = createSpawnRules(gameplayContext)
         spawnEngine = SpawnRulesEngine(spawnRules)
+        spawnHistory = SpawnHistoryTracker(
+            preferences = preferencesManager,
+            pokemonDao = db.pokemonDao()
+        )
+        cadenceController = SpawnCadenceController(
+            spawnEngine = spawnEngine,
+            history = spawnHistory
+        )
     }
 
     /**
@@ -102,6 +116,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     override fun performOnServiceConnected(context: Context, glyphMatrixManager: GlyphMatrixManager) {
         restoreSpawnQueue()
+        spawnHistory.syncFromQueue(spawnQueue)
         aodActive = false
         tick()
         startLocalClock()
@@ -170,25 +185,22 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             preferencesManager.glyphToyHasTicked = true
         }
 
-        if (Random.Default.nextFloat() < getSpawnChance()) {
-            val spawn = spawnEngine.spawn(gameplayContext.phone.minutesOff)
-            if (spawn != null) {
+        val now = System.currentTimeMillis()
+        val snapshot = SpawnSnapshot(
+            hasQueuedSpawns = spawnQueue.isNotEmpty(),
+            isInteractive = gameplayContext.phone.isInteractive,
+            screenOffMinutes = gameplayContext.phone.minutesOff,
+            pokedexCount = gameplayContext.trainer.pokedexCount,
+            isDuringSleepWindow = gameplayContext.sleep.isDuringSleepWindow
+        )
+
+        if (!snapshot.isInteractive) {
+            cadenceController.maybeSpawn(now, snapshot)?.let { spawn ->
                 addToQueue(spawn)
             }
         }
 
         updateGlyphMatrix()
-    }
-
-    /**
-     * Returns the probability for a Pokémon to spawn on the next tick.
-     */
-    private fun getSpawnChance(): Double = when {
-        gameplayContext.trainer.pokedexCount == 0 && spawnQueue.isEmpty() -> 0.2
-        gameplayContext.sleep.isDuringSleepWindow -> 0.005
-        gameplayContext.phone.minutesOff > 30 -> 0.025
-        gameplayContext.phone.minutesOff > 5 -> 0.01
-        else -> 0.0
     }
 
     /**
@@ -212,6 +224,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             Log.d(TAG, "Queue size: ${spawnQueue.size}")
 
             sortQueueByRarity()
+            spawnHistory.recordSpawn(spawn)
         }
         saveSpawnQueue()
     }
@@ -356,6 +369,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             )
             db.pokemonDao().insert(caughtPokemon)
             Log.d(TAG, "Successfully saved ${spawn.pokemon.name} to database")
+            spawnHistory.recordCatch(spawn, caughtPokemon.caughtAt)
 
             synchronized(spawnQueue) {
                 spawnQueue.remove(spawn)
@@ -390,7 +404,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                     poolName = spawn.pool.name,
                     isSpecial = spawn.pool.isSpecial,
                     isConditional = spawn.pool.isConditional,
-                    screenOffDurationMinutes = spawn.screenOffDurationMinutes
+                    screenOffDurationMinutes = spawn.screenOffDurationMinutes,
+                    spawnedAtMillis = spawn.spawnedAtMillis
                 )
             }
 
@@ -420,13 +435,13 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                     val pokemon = Pokemon.all[persistent.pokemonId]
                     if (pokemon != null) {
                         val pool = spawnEngine.rules.pools.find { it.name == persistent.poolName }!!
-                        spawnQueue.add(
-                            SpawnResult(
-                                pokemon = pokemon,
-                                pool = pool,
-                                screenOffDurationMinutes = persistent.screenOffDurationMinutes
-                            )
+                        val spawn = SpawnResult(
+                            pokemon = pokemon,
+                            pool = pool,
+                            screenOffDurationMinutes = persistent.screenOffDurationMinutes,
+                            spawnedAtMillis = persistent.spawnedAtMillis
                         )
+                        spawnQueue.add(spawn)
                     }
                 }
                 Log.d(TAG, "Restored ${spawnQueue.size} spawns from storage")
@@ -470,3 +485,10 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         private const val GLYPH_MATRIX_CENTER = GLYPH_MATRIX_SIZE / 2 // Center index (12, which is the 13th pixel)
     }
 }
+
+
+
+
+
+
+

@@ -87,6 +87,9 @@ interface PokemonDao {
     @Query("SELECT COUNT(*) FROM caught_pokemon WHERE speciesId = :speciesId")
     suspend fun countBySpeciesId(speciesId: Int): Int
 
+    @Query("SELECT MAX(caughtAt) FROM caught_pokemon WHERE spawnPoolName = :poolName")
+    suspend fun getLastCaughtAtForPool(poolName: String): Long?
+
     @Insert
     suspend fun insert(pokemon: CaughtPokemon)
 
