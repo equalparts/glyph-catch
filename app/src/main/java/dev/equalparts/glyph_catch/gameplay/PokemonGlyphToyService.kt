@@ -25,8 +25,10 @@ import kotlin.math.floor
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -57,6 +59,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     private lateinit var frameFactory: GlyphMatrixHelper
     private lateinit var animationCoordinator: AnimationCoordinator
     private var displayedSpawn: SpawnResult? = null
+    private var localClockJob: Job? = null
+    private var aodActive = false
 
     /**
      * Called by the system when the service is first created.
@@ -87,6 +91,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         if (::animationCoordinator.isInitialized) {
             animationCoordinator.cancelActive()
         }
+        localClockJob?.cancel()
+        localClockJob = null
         coroutineScope?.cancel()
         coroutineScope = null
     }
@@ -96,7 +102,9 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     override fun performOnServiceConnected(context: Context, glyphMatrixManager: GlyphMatrixManager) {
         restoreSpawnQueue()
+        aodActive = false
         tick()
+        startLocalClock()
     }
 
     /**
@@ -104,6 +112,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     override fun performOnServiceDisconnected(context: Context) {
         super.performOnServiceDisconnected(context)
+        localClockJob?.cancel()
+        localClockJob = null
         saveSpawnQueue()
     }
 
@@ -111,7 +121,29 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      * Called by the system at every full minute mark: 10:30:00, 10:31:00, etc.
      */
     override fun onAodTick() {
+        if (!aodActive) {
+            aodActive = true
+            localClockJob?.cancel()
+            localClockJob = null
+        }
         tick()
+    }
+
+    /**
+     * Starts a local clock that ticks every minute until AOD becomes active.
+     */
+    private fun startLocalClock() {
+        localClockJob?.cancel()
+        localClockJob = coroutineScope?.launch(Dispatchers.Main) {
+            while (!aodActive) {
+                val calendar = Calendar.getInstance()
+                val secondsUntilNextMinute = 60 - calendar.get(Calendar.SECOND)
+                val millisUntilNextMinute = secondsUntilNextMinute * 1000L - calendar.get(Calendar.MILLISECOND)
+
+                delay(millisUntilNextMinute)
+                tick()
+            }
+        }
     }
 
     /**
