@@ -485,10 +485,3 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         private const val GLYPH_MATRIX_CENTER = GLYPH_MATRIX_SIZE / 2 // Center index (12, which is the 13th pixel)
     }
 }
-
-
-
-
-
-
-

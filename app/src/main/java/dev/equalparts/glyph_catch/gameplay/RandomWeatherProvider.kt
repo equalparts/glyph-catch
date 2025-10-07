@@ -2,6 +2,8 @@ package dev.equalparts.glyph_catch.gameplay
 
 import dev.equalparts.glyph_catch.gameplay.spawner.Weather
 import dev.equalparts.glyph_catch.gameplay.spawner.WeatherProvider
+import java.util.Calendar
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -10,8 +12,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.util.Calendar
-import kotlin.random.Random
 
 /**
  * Default weather provider that generates a random weather condition per day.

@@ -8,10 +8,7 @@ import kotlin.math.max
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 
-class SpawnCadenceController(
-    private val spawnEngine: SpawnRulesEngine,
-    private val history: SpawnHistoryTracker
-) {
+class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private val history: SpawnHistoryTracker) {
     private val rerollPools = spawnEngine.rules.pools.filter { it.isEligibleForReroll() }
     private val rerollPriority = rerollPools
         .sortedBy { it.basePercentage }
@@ -116,25 +113,13 @@ class SpawnCadenceController(
 
     private fun poolPriority(poolName: String): Int = rerollPriority[poolName] ?: 0
 
-    private fun SpawnPool.isEligibleForReroll(): Boolean =
-        !isSpecial && !isConditional && basePercentage > 0f
+    private fun SpawnPool.isEligibleForReroll(): Boolean = !isSpecial && !isConditional && basePercentage > 0f
 
-    private data class ScreenOffChanceRule(
-        val minMinutesOff: Int,
-        val baseChance: Double
-    )
+    private data class ScreenOffChanceRule(val minMinutesOff: Int, val baseChance: Double)
 
-    private data class RerollRule(
-        val minWaitMillis: Long,
-        val rerolls: Int
-    )
+    private data class RerollRule(val minWaitMillis: Long, val rerolls: Int)
 
-    private data class RerollRequest(
-        val poolName: String,
-        val rerolls: Int,
-        val priority: Int,
-        val waitedMillis: Long
-    )
+    private data class RerollRequest(val poolName: String, val rerolls: Int, val priority: Int, val waitedMillis: Long)
 
     companion object {
         private const val FIRST_CATCH_CHANCE = 0.2
@@ -142,10 +127,7 @@ class SpawnCadenceController(
     }
 }
 
-class SpawnHistoryTracker(
-    private val preferences: PreferencesManager,
-    private val pokemonDao: PokemonDao
-) {
+class SpawnHistoryTracker(private val preferences: PreferencesManager, private val pokemonDao: PokemonDao) {
     var lastSpawnScreenOffMinutes: Int = preferences.lastSpawnScreenOffMinutes
         private set
 
