@@ -57,6 +57,10 @@ class PreferencesManager(context: Context) {
         get() = prefs.getLong(KEY_PLAYER_START_DATE, 0L)
         set(value) = prefs.edit { putLong(KEY_PLAYER_START_DATE, value) }
 
+    var debugCaptureEnabled: Boolean
+        get() = prefs.getBoolean(KEY_DEBUG_CAPTURE_ENABLED, false)
+        set(value) = prefs.edit { putBoolean(KEY_DEBUG_CAPTURE_ENABLED, value) }
+
     var glyphToyHasTicked: Boolean
         get() = prefs.getBoolean(KEY_GLYPH_TOY_TICKED, false)
         set(value) = prefs.edit { putBoolean(KEY_GLYPH_TOY_TICKED, value) }
@@ -184,6 +188,19 @@ class PreferencesManager(context: Context) {
         awaitClose { unregisterListener(listener) }
     }.distinctUntilChanged()
 
+    fun watchDebugCaptureEnabled(): Flow<Boolean> = callbackFlow {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+            if (changedKey == KEY_DEBUG_CAPTURE_ENABLED) {
+                trySend(debugCaptureEnabled)
+            }
+        }
+
+        trySend(debugCaptureEnabled)
+        registerListener(listener)
+
+        awaitClose { unregisterListener(listener) }
+    }.distinctUntilChanged()
+
     fun registerListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
     }
@@ -207,6 +224,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_SUPER_ROD_DISCOVERED = "super_rod_discovered"
         private const val KEY_SUPER_ROD_INDICATOR_DISMISSED = "super_rod_indicator_dismissed"
         private const val KEY_SLEEP_BONUS_EXPIRES_AT = "sleep_bonus_expires_at"
+        private const val KEY_DEBUG_CAPTURE_ENABLED = "debug_capture_enabled"
         private const val KEY_LAST_SPAWN_SCREEN_OFF_MINUTES = "last_spawn_screen_off_minutes"
         private const val KEY_LAST_POOL_PREFIX = "last_regular_spawn_"
         private const val MINUTES_PER_DAY = 24 * 60

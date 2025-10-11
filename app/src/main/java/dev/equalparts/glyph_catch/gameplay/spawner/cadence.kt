@@ -16,93 +16,155 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
         .toMap()
 
     private val screenOffChanceRules = listOf(
-        ScreenOffChanceRule(minMinutesOff = 15, baseChance = 0.01),
-        ScreenOffChanceRule(minMinutesOff = 30, baseChance = 0.02),
-        ScreenOffChanceRule(minMinutesOff = 60, baseChance = 0.03)
+        ScreenOffChanceRule(minMinutesAccumulated = 15, baseChance = 0.01),
+        ScreenOffChanceRule(minMinutesAccumulated = 30, baseChance = 0.05),
+        ScreenOffChanceRule(minMinutesAccumulated = 45, baseChance = 0.10),
+        ScreenOffChanceRule(minMinutesAccumulated = 60, baseChance = 0.20),
+        ScreenOffChanceRule(minMinutesAccumulated = 75, baseChance = 0.30)
     )
 
     private val rerollRules = listOf(
-        RerollRule(minWaitMillis = TimeUnit.HOURS.toMillis(16), rerolls = 1),
-        RerollRule(minWaitMillis = TimeUnit.HOURS.toMillis(32), rerolls = 2),
-        RerollRule(minWaitMillis = TimeUnit.HOURS.toMillis(48), rerolls = 50)
+        RerollRule(minWaitMillis = TimeUnit.HOURS.toMillis(20), rerolls = 2),
+        RerollRule(minWaitMillis = TimeUnit.HOURS.toMillis(30), rerolls = 5),
+        RerollRule(minWaitMillis = TimeUnit.HOURS.toMillis(40), rerolls = 50)
     )
 
-    fun maybeSpawn(nowMillis: Long, snapshot: SpawnSnapshot, random: Random = Random.Default): SpawnResult? {
-        if (snapshot.isInteractive) {
-            return null
+    fun maybeSpawn(nowMillis: Long, context: SpawnContext, random: Random = Random.Default): SpawnDecision {
+        if (context.isInteractive) {
+            return SpawnDecision(
+                null,
+                SpawnDecisionDebug(
+                    minutesAccumulated = 0,
+                    baseChance = 0.0,
+                    roll = null,
+                    reason = SpawnDecisionReason.DEVICE_INTERACTIVE,
+                    initialPool = null,
+                    finalPool = null,
+                    rerollTargetPool = null,
+                    rerollsRequested = 0,
+                    rerollsUsed = 0
+                )
+            )
         }
 
-        val effectiveMinutes = history.computeEffectiveScreenOffMinutes(snapshot.screenOffMinutes)
-        val chance = spawnChance(snapshot, effectiveMinutes)
-        if (chance <= 0.0 || random.nextFloat() >= chance) {
-            return null
+        val minutesAccumulated = history.computeScreenOffMinutesAccumulated(context.screenOffMinutes)
+        val chance = spawnChance(context, minutesAccumulated)
+
+        val roll = random.nextFloat()
+        if (roll >= chance) {
+            return SpawnDecision(
+                null,
+                SpawnDecisionDebug(
+                    minutesAccumulated = minutesAccumulated,
+                    baseChance = chance,
+                    roll = roll,
+                    reason = SpawnDecisionReason.ROLL_FAILED,
+                    initialPool = null,
+                    finalPool = null,
+                    rerollTargetPool = null,
+                    rerollsRequested = 0,
+                    rerollsUsed = 0
+                )
+            )
         }
 
-        return spawnWithReroll(nowMillis, snapshot.screenOffMinutes)
+        val rerollOptions = decideRerollOptions(nowMillis, context.screenOffMinutes)
+        val spawnOutcome = spawnWithReroll(nowMillis, context.screenOffMinutes, rerollOptions)
+
+        return SpawnDecision(
+            spawnOutcome.result,
+            SpawnDecisionDebug(
+                minutesAccumulated = minutesAccumulated,
+                baseChance = chance,
+                roll = roll,
+                reason = SpawnDecisionReason.ROLL_SUCCEEDED,
+                initialPool = spawnOutcome.initialPoolName,
+                finalPool =  spawnOutcome.result.pool.name,
+                rerollTargetPool = rerollOptions?.poolName,
+                rerollsRequested = rerollOptions?.rerolls ?: 0,
+                rerollsUsed = spawnOutcome.rerollsUsed
+            )
+        )
     }
 
-    private fun spawnChance(snapshot: SpawnSnapshot, effectiveMinutesOff: Int): Double {
-        if (snapshot.pokedexCount == 0 && !snapshot.hasQueuedSpawns) {
+    private fun spawnChance(context: SpawnContext, minutesAccumulated: Int): Double {
+        if (context.pokedexCount == 0 && !context.hasQueuedSpawns) {
             return FIRST_CATCH_CHANCE
         }
 
         val baseChance = screenOffChanceRules
-            .lastOrNull { effectiveMinutesOff >= it.minMinutesOff }
+            .lastOrNull { minutesAccumulated >= it.minMinutesAccumulated }
             ?.baseChance
             ?: return 0.0
 
-        return if (snapshot.isDuringSleepWindow) {
+        return if (context.isDuringSleepWindow) {
             baseChance.coerceAtMost(MAX_SLEEP_WINDOW_CHANCE)
         } else {
             baseChance
         }
     }
 
-    private fun spawnWithReroll(nowMillis: Long, screenOffMinutes: Int): SpawnResult? {
-        var spawn = spawnEngine.spawn(screenOffMinutes) ?: return null
-        val request = computeRerollRequest(nowMillis)
+    private fun spawnWithReroll(nowMillis: Long, screenOffMinutes: Int, rerollOptions: RerollOptions?): SpawnOutcome {
+        val firstSpawn = spawnEngine.spawn(screenOffMinutes)
 
-        if (request != null && !spawn.pool.name.equals(request.poolName, ignoreCase = true)) {
-            var current = spawn
-            var rerollsRemaining = request.rerolls
-            while (rerollsRemaining > 0 && !current.pool.name.equals(request.poolName, ignoreCase = true)) {
-                val reroll = spawnEngine.spawn(screenOffMinutes) ?: break
-                current = reroll
-                rerollsRemaining--
-            }
-            spawn = current
+        if (rerollOptions == null || firstSpawn.pool.name == rerollOptions.poolName) {
+            return SpawnOutcome(
+                result = firstSpawn.copy(spawnedAtMillis = nowMillis),
+                initialPoolName = firstSpawn.pool.name,
+                rerollOptions = rerollOptions,
+                rerollsUsed = 0
+            )
         }
 
-        return spawn.copy(spawnedAtMillis = nowMillis)
+        var currentSpawn = firstSpawn
+        var rerollsRemaining = rerollOptions.rerolls
+        var rerollsUsed = 0
+
+        while (rerollsRemaining > 0 && currentSpawn.pool.name != rerollOptions.poolName) {
+            val reroll = spawnEngine.spawn(screenOffMinutes)
+            currentSpawn = reroll
+            rerollsRemaining--
+            rerollsUsed++
+        }
+
+        return SpawnOutcome(
+            result = currentSpawn.copy(spawnedAtMillis = nowMillis),
+            initialPoolName = firstSpawn.pool.name,
+            rerollOptions = rerollOptions,
+            rerollsUsed = rerollsUsed
+        )
     }
 
-    private fun computeRerollRequest(nowMillis: Long): RerollRequest? {
-        if (rerollPools.isEmpty()) {
+    private fun decideRerollOptions(nowMillis: Long, screenOffMinutes: Int): RerollOptions? {
+        if (rerollPools.isEmpty() || screenOffMinutes < MIN_SCREEN_OFF_MINUTES_FOR_REROLL) {
             return null
         }
 
-        var best: RerollRequest? = null
+        var bestRerollOptions: RerollOptions? = null
         for (pool in rerollPools) {
-            val lastKnown = history.bestKnownSpawnTime(pool.name)
-            val effectiveLastTime = if (lastKnown > 0L) lastKnown else history.getPlayerStartDate()
-            if (effectiveLastTime <= 0L) continue
+            val lastKnownSpawnTime = history.bestKnownSpawnTime(pool.name)
+            val startTime = if (lastKnownSpawnTime > 0L) {
+                lastKnownSpawnTime
+            } else {
+                history.getPlayerStartDate()
+            }
 
-            val waitedMillis = (nowMillis - effectiveLastTime).coerceAtLeast(0L)
+            val waitedMillis = (nowMillis - startTime).coerceAtLeast(0L)
             val rule = rerollRules.lastOrNull { waitedMillis >= it.minWaitMillis } ?: continue
-            val request = RerollRequest(
+            val rerollOptions = RerollOptions(
                 poolName = pool.name,
                 rerolls = rule.rerolls,
                 priority = rerollPriority[pool.name] ?: 0,
                 waitedMillis = waitedMillis
             )
 
-            best = selectBetterReroll(best, request)
+            bestRerollOptions = selectBetterReroll(bestRerollOptions, rerollOptions)
         }
 
-        return best
+        return bestRerollOptions
     }
 
-    private fun selectBetterReroll(current: RerollRequest?, candidate: RerollRequest): RerollRequest {
+    private fun selectBetterReroll(current: RerollOptions?, candidate: RerollOptions): RerollOptions {
         current ?: return candidate
         return when {
             candidate.priority > current.priority -> candidate
@@ -114,13 +176,21 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
 
     private fun SpawnPool.isEligibleForReroll(): Boolean = !isSpecial && !isConditional && basePercentage > 0f
 
-    private data class ScreenOffChanceRule(val minMinutesOff: Int, val baseChance: Double)
+    private data class SpawnOutcome(
+        val result: SpawnResult,
+        val initialPoolName: String,
+        val rerollOptions: RerollOptions?,
+        val rerollsUsed: Int
+    )
+
+    private data class ScreenOffChanceRule(val minMinutesAccumulated: Int, val baseChance: Double)
     private data class RerollRule(val minWaitMillis: Long, val rerolls: Int)
-    private data class RerollRequest(val poolName: String, val rerolls: Int, val priority: Int, val waitedMillis: Long)
+    private data class RerollOptions(val poolName: String, val rerolls: Int, val priority: Int, val waitedMillis: Long)
 
     companion object {
         private const val FIRST_CATCH_CHANCE = 0.2
         private const val MAX_SLEEP_WINDOW_CHANCE = 0.005
+        private const val MIN_SCREEN_OFF_MINUTES_FOR_REROLL = 30
     }
 }
 
@@ -149,7 +219,7 @@ class SpawnHistoryTracker(private val preferences: PreferencesManager, private v
         return max(fromPrefs, fromDb)
     }
 
-    fun computeEffectiveScreenOffMinutes(currentMinutes: Int): Int =
+    fun computeScreenOffMinutesAccumulated(currentMinutes: Int): Int =
         (currentMinutes - lastSpawnScreenOffMinutes).coerceAtLeast(0)
 
     fun getPlayerStartDate(): Long = preferences.playerStartDate
@@ -174,10 +244,30 @@ class SpawnHistoryTracker(private val preferences: PreferencesManager, private v
         runBlocking { pokemonDao.getLastCaughtAtForPool(poolName) } ?: 0L
 }
 
-data class SpawnSnapshot(
+data class SpawnContext(
     val hasQueuedSpawns: Boolean,
     val isInteractive: Boolean,
     val screenOffMinutes: Int,
     val pokedexCount: Int,
     val isDuringSleepWindow: Boolean
 )
+
+data class SpawnDecision(val spawn: SpawnResult?, val debug: SpawnDecisionDebug)
+
+data class SpawnDecisionDebug(
+    val minutesAccumulated: Int,
+    val baseChance: Double,
+    val roll: Float?,
+    val reason: SpawnDecisionReason,
+    val initialPool: String?,
+    val finalPool: String?,
+    val rerollTargetPool: String?,
+    val rerollsRequested: Int,
+    val rerollsUsed: Int
+)
+
+enum class SpawnDecisionReason {
+    DEVICE_INTERACTIVE,
+    ROLL_FAILED,
+    ROLL_SUCCEEDED
+}

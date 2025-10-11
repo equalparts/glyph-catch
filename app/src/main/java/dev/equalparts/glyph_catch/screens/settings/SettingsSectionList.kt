@@ -42,6 +42,12 @@ fun SettingsSectionList(modifier: Modifier, onSectionSelected: (SettingsDestinat
             description = stringResource(R.string.settings_section_sleep_description),
             onClick = { onSectionSelected(SettingsDestination.Sleep) }
         )
+
+        SettingsSectionCard(
+            title = stringResource(R.string.settings_debug_title),
+            description = stringResource(R.string.settings_section_debug_description),
+            onClick = { onSectionSelected(SettingsDestination.Debug) }
+        )
     }
 }
 
