@@ -35,6 +35,9 @@ class DebugLogExporter(
     }
 
     private fun writeEventsNdjson(events: List<DebugEvent>, file: File) {
+        val ndjsonJson = Json(json) {
+            prettyPrint = false
+        }
         file.bufferedWriter().use { writer ->
             for (event in events) {
                 val payloadElement = runCatching { json.parseToJsonElement(event.payloadJson) }
@@ -54,7 +57,7 @@ class DebugLogExporter(
                     put("isDuringSleepWindow", JsonPrimitive(event.isDuringSleepWindow))
                     put("payload", payloadElement)
                 }
-                writer.write(json.encodeToString(line))
+                writer.write(ndjsonJson.encodeToString(line))
                 writer.newLine()
             }
         }
