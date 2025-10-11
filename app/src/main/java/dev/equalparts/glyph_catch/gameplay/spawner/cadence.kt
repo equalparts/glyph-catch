@@ -84,9 +84,10 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
         var best: RerollRequest? = null
         for (pool in rerollPools) {
             val lastKnown = history.bestKnownSpawnTime(pool.name)
-            if (lastKnown <= 0L) continue
+            val effectiveLastTime = if (lastKnown > 0L) lastKnown else history.getPlayerStartDate()
+            if (effectiveLastTime <= 0L) continue
 
-            val waitedMillis = (nowMillis - lastKnown).coerceAtLeast(0L)
+            val waitedMillis = (nowMillis - effectiveLastTime).coerceAtLeast(0L)
             val rule = rerollRules.lastOrNull { waitedMillis >= it.minWaitMillis } ?: continue
             val request = RerollRequest(
                 poolName = pool.name,
@@ -150,6 +151,8 @@ class SpawnHistoryTracker(private val preferences: PreferencesManager, private v
 
     fun computeEffectiveScreenOffMinutes(currentMinutes: Int): Int =
         (currentMinutes - lastSpawnScreenOffMinutes).coerceAtLeast(0)
+
+    fun getPlayerStartDate(): Long = preferences.playerStartDate
 
     private fun updateLastSpawnScreenOffMinutes(latest: Int) {
         val sanitized = latest.coerceAtLeast(0)
