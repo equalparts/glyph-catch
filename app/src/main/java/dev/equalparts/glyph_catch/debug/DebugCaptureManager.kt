@@ -1,5 +1,7 @@
 package dev.equalparts.glyph_catch.debug
 
+import android.content.Context
+import dev.equalparts.glyph_catch.data.PokemonDatabase
 import dev.equalparts.glyph_catch.data.PreferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -69,5 +71,32 @@ class DebugCaptureManager(
     companion object {
         private const val MAX_ROWS = 10_000
         private val emptyPayload = JsonObject(emptyMap())
+
+        @Volatile
+        private var shared: DebugCaptureManager? = null
+
+        fun shared(context: Context): DebugCaptureManager {
+            val cached = shared
+            if (cached != null) {
+                return cached
+            }
+
+            return synchronized(this) {
+                val existing = shared
+                existing
+                    ?: create(context.applicationContext).also { created ->
+                        shared = created
+                    }
+            }
+        }
+
+        private fun create(context: Context): DebugCaptureManager {
+            val database = PokemonDatabase.getInstance(context)
+            val preferences = PreferencesManager(context)
+            return DebugCaptureManager(
+                dao = database.debugEventDao(),
+                preferences = preferences
+            )
+        }
     }
 }

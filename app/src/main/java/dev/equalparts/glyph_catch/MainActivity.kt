@@ -26,6 +26,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.equalparts.glyph_catch.data.PokemonDatabase
+import dev.equalparts.glyph_catch.debug.DebugExceptionTracker
 import dev.equalparts.glyph_catch.navigation.AppNavigationGraph
 import dev.equalparts.glyph_catch.navigation.AppScreen
 
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        DebugExceptionTracker.install(applicationContext)
         val db = PokemonDatabase.getInstance(this)
 
         setContent {

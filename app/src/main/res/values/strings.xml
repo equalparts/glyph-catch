@@ -78,8 +78,8 @@
     <string name="settings_debug_toggle_label">Save logs</string>
     <string name="settings_debug_toggle_subtitle">For troubleshooting only</string>
     <string name="settings_debug_export_title">Report issue</string>
-    <string name="settings_debug_export_description">Save captured logs as a JSON file for investigation. The logs include screen on/off timings, gameplay info, and general device information.</string>
-    <string name="settings_debug_export_privacy">Privacy note: the logs do not include personally identifiable information, but do reveal when you use your phone.</string>
+    <string name="settings_debug_export_description">Save captured logs as a JSON file for investigation. The logs include screen on/off timings, gameplay info, errors, and general device information.</string>
+    <string name="settings_debug_export_privacy">The system does not collect personally identifiable information.</string>
     <string name="settings_debug_export_button">Export to file</string>
     <string name="settings_debug_export_share_title">Share debug logs</string>
     <string name="settings_debug_export_empty">No logs to export yet.</string>

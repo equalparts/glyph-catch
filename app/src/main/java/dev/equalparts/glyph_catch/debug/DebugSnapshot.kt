@@ -12,4 +12,17 @@ data class DebugSnapshot(
     val sleepMinutesOutside: Int,
     val hasSleepBonus: Boolean,
     val isDuringSleepWindow: Boolean
-)
+) {
+    companion object {
+        val EMPTY = DebugSnapshot(
+            batteryPercent = 0,
+            isInteractive = false,
+            minutesScreenOff = 0,
+            minutesScreenOffForSpawn = 0,
+            queueSize = 0,
+            sleepMinutesOutside = 0,
+            hasSleepBonus = false,
+            isDuringSleepWindow = false
+        )
+    }
+}
