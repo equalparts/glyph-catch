@@ -29,7 +29,6 @@ class DebugLogExporter(
 
         writeEventsNdjson(events, outputFile)
 
-        debugCaptureManager.clear()
         debugCaptureManager.setEnabled(false)
 
         DebugExportResult.Success(outputFile, events.size)
