@@ -6,20 +6,24 @@ import kotlin.coroutines.coroutineContext
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.roundToLong
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Coordinates the playback of animations on the Glyph Matrix display.
  */
 internal class AnimationCoordinator(
     private val glyphFrameHelper: GlyphMatrixHelper,
-    private val glyphMatrixManagerProvider: () -> GlyphMatrixManager
+    private val glyphMatrixManagerProvider: () -> GlyphMatrixManager,
+    private val animationDispatcher: CoroutineDispatcher,
+    private val onAnimationStart: () -> Unit = {},
+    private val onAnimationEnd: () -> Unit = {}
 ) {
-
     private var activeAnimationJob: Job? = null
     private val circleFrameCache = mutableMapOf<Int, IntArray>()
     private val matrixSize = glyphFrameHelper.matrixSize
@@ -49,7 +53,9 @@ internal class AnimationCoordinator(
     fun playSpawn(scope: CoroutineScope, spawn: SpawnResult, onDisplayed: (SpawnResult) -> Unit) {
         cancelActive()
 
-        val job = scope.launch {
+        val job = scope.launch(animationDispatcher) {
+            onAnimationStart()
+
             try {
                 val normalBitmap = glyphFrameHelper.getPokemonBitmap(spawn.pokemon.id)
                 val normalFrame = glyphFrameHelper.renderBitmapFrame(normalBitmap)
@@ -68,6 +74,7 @@ internal class AnimationCoordinator(
                 coroutineContext.ensureActive()
                 onDisplayed(spawn)
             } finally {
+                onAnimationEnd()
                 clearActiveJob(coroutineContext[Job])
             }
         }
@@ -82,36 +89,40 @@ internal class AnimationCoordinator(
         val job = coroutineContext[Job]
         activeAnimationJob = job
 
+        onAnimationStart()
         try {
-            val manager = glyphMatrixManagerProvider()
+            withContext(animationDispatcher) {
+                val manager = glyphMatrixManagerProvider()
 
-            manager.setMatrixFrame(
-                circleFrameCache.getOrPut(matrixSize) {
-                    glyphFrameHelper.renderCircleFrame(matrixSize)
+                manager.setMatrixFrame(
+                    circleFrameCache.getOrPut(matrixSize) {
+                        glyphFrameHelper.renderCircleFrame(matrixSize)
+                    }
+                )
+                delay(CATCH_INITIAL_FLASH_MS)
+
+                for (frame in buildCircleShrinkFrames()) {
+                    coroutineContext.ensureActive()
+                    manager.setMatrixFrame(frame.frame)
+                    delay(frame.durationMs)
                 }
-            )
-            delay(CATCH_INITIAL_FLASH_MS)
 
-            for (frame in buildCircleShrinkFrames()) {
-                coroutineContext.ensureActive()
-                manager.setMatrixFrame(frame.frame)
-                delay(frame.durationMs)
+                val animationFrames = glyphFrameHelper.loadCatchAnimationFrames()
+                animationFrames.forEachIndexed { index, frame ->
+                    coroutineContext.ensureActive()
+                    manager.setMatrixFrame(frame)
+                    val frameDelay = if (index == 0) CATCH_ANIMATION_DELAY_MS else CATCH_ANIMATION_FRAME_MS
+                    delay(frameDelay)
+                }
+
+                manager.setMatrixFrame(animationFrames.last())
+                delay(CATCH_POKEBALL_HOLD_MS)
+
+                manager.setMatrixFrame(glyphFrameHelper.renderBlankFrame())
+                delay(CATCH_POST_CLEAR_DELAY_MS)
             }
-
-            val animationFrames = glyphFrameHelper.loadCatchAnimationFrames()
-            animationFrames.forEachIndexed { index, frame ->
-                coroutineContext.ensureActive()
-                manager.setMatrixFrame(frame)
-                val frameDelay = if (index == 0) CATCH_ANIMATION_DELAY_MS else CATCH_ANIMATION_FRAME_MS
-                delay(frameDelay)
-            }
-
-            manager.setMatrixFrame(animationFrames.last())
-            delay(CATCH_POKEBALL_HOLD_MS)
-
-            manager.setMatrixFrame(glyphFrameHelper.renderBlankFrame())
-            delay(CATCH_POST_CLEAR_DELAY_MS)
         } finally {
+            onAnimationEnd()
             clearActiveJob(job)
         }
     }

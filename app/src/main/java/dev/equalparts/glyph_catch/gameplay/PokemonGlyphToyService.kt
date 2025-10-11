@@ -1,6 +1,7 @@
 package dev.equalparts.glyph_catch.gameplay
 
 import android.content.Context
+import android.os.PowerManager
 import android.text.format.DateFormat
 import android.util.Log
 import androidx.core.content.edit
@@ -60,20 +61,29 @@ data class PersistentSpawn(
  */
 class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
 
-    private val spawnQueue = mutableListOf<SpawnResult>()
-    private lateinit var gameplayContext: GameplayContext
-    private lateinit var spawnEngine: SpawnRulesEngine
     private var coroutineScope: CoroutineScope? = null
+
     private lateinit var db: PokemonDatabase
     private lateinit var preferencesManager: PreferencesManager
     private lateinit var frameFactory: GlyphMatrixHelper
     private lateinit var animationCoordinator: AnimationCoordinator
-    private var displayedSpawn: SpawnResult? = null
-    private lateinit var cadenceController: SpawnCadenceController
+
+    private lateinit var gameplayContext: GameplayContext
+    private lateinit var spawnEngine: SpawnRulesEngine
     private lateinit var spawnHistory: SpawnHistoryTracker
-    private lateinit var debugCapture: DebugCaptureManager
+    private lateinit var cadenceController: SpawnCadenceController
+
     private var localClockJob: Job? = null
     private var aodActive = false
+
+    private val animationWakeLockMutex = Any()
+    private var animationWakeLock: PowerManager.WakeLock? = null
+    private var activeAnimationWakeLockHolders = 0
+
+    private val spawnQueue = mutableListOf<SpawnResult>()
+    private var displayedSpawn: SpawnResult? = null
+
+    private lateinit var debugCapture: DebugCaptureManager
     private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
         handleCoroutineException(throwable)
     }
@@ -84,29 +94,33 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     override fun onCreate() {
         super.onCreate()
         DebugExceptionTracker.install(applicationContext)
-        db = PokemonDatabase.getInstance(applicationContext)
-        preferencesManager = PreferencesManager(applicationContext)
-        debugCapture = DebugCaptureManager.shared(applicationContext)
+
         coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + coroutineExceptionHandler)
 
+        db = PokemonDatabase.getInstance(applicationContext)
+        preferencesManager = PreferencesManager(applicationContext)
         frameFactory = GlyphMatrixHelper(applicationContext, GLYPH_MATRIX_SIZE)
-        animationCoordinator = AnimationCoordinator(frameFactory) {
-            glyphMatrixManager ?: error("GlyphMatrixManager not connected")
-        }
+        animationCoordinator = AnimationCoordinator(
+            glyphFrameHelper = frameFactory,
+            glyphMatrixManagerProvider = { glyphMatrixManager ?: error("GlyphMatrixManager not connected") },
+            animationDispatcher = Dispatchers.Main.immediate,
+            onAnimationStart = { acquireAnimationWakeLock() },
+            onAnimationEnd = { releaseAnimationWakeLock() }
+        )
 
         val weatherProvider = WeatherProviderFactory.create(applicationContext)
         gameplayContext = GameplayContext(applicationContext, weatherProvider, spawnQueue)
+        spawnEngine = SpawnRulesEngine(createSpawnRules(gameplayContext))
+        spawnHistory = SpawnHistoryTracker(preferences = preferencesManager, pokemonDao = db.pokemonDao())
+        cadenceController = SpawnCadenceController(spawnEngine = spawnEngine, history = spawnHistory)
 
-        val spawnRules = createSpawnRules(gameplayContext)
-        spawnEngine = SpawnRulesEngine(spawnRules)
-        spawnHistory = SpawnHistoryTracker(
-            preferences = preferencesManager,
-            pokemonDao = db.pokemonDao()
+        val powerManager = applicationContext.getSystemService(PowerManager::class.java)
+        animationWakeLock = powerManager?.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            WAKE_LOCK_TAG
         )
-        cadenceController = SpawnCadenceController(
-            spawnEngine = spawnEngine,
-            history = spawnHistory
-        )
+
+        debugCapture = DebugCaptureManager.shared(applicationContext)
     }
 
     /**
@@ -121,6 +135,16 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         localClockJob = null
         coroutineScope?.cancel()
         coroutineScope = null
+        synchronized(animationWakeLockMutex) {
+            animationWakeLock?.let { wakeLock ->
+                if (wakeLock.isHeld) {
+                    runCatching { wakeLock.release() }
+                        .onFailure { error -> Log.w(TAG, "Unable to release animation wake lock on destroy", error) }
+                }
+            }
+            animationWakeLock = null
+            activeAnimationWakeLockHolders = 0
+        }
     }
 
     /**
@@ -227,7 +251,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                         "decision",
                         buildJsonObject {
                             put("reason", JsonPrimitive(decisionDebug.reason.name.lowercase(Locale.US)))
-                            put("effectiveScreenOffMinutes", JsonPrimitive(decisionDebug.minutesAccumulated))
+                            put("minutesAccumulated", JsonPrimitive(decisionDebug.minutesAccumulated))
                             put("baseChance", JsonPrimitive(decisionDebug.baseChance))
                             decisionDebug.roll?.let { put("roll", JsonPrimitive(it)) }
                             decisionDebug.initialPool?.let { put("initialPool", JsonPrimitive(it)) }
@@ -511,6 +535,41 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     }
 
     /**
+     * Acquires a wake lock to prevent animation freezes.
+     */
+    private fun acquireAnimationWakeLock() {
+        val wakeLock = animationWakeLock ?: return
+        synchronized(animationWakeLockMutex) {
+            if (activeAnimationWakeLockHolders == 0) {
+                val acquired = runCatching { wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS) }
+                    .onFailure { error -> Log.w(TAG, "Unable to acquire animation wake lock", error) }
+                    .isSuccess
+                if (!acquired) {
+                    return
+                }
+            }
+            activeAnimationWakeLockHolders++
+        }
+    }
+
+    /**
+     * Releases the wake lock to preserve battery.
+     */
+    private fun releaseAnimationWakeLock() {
+        val wakeLock = animationWakeLock ?: return
+        synchronized(animationWakeLockMutex) {
+            if (activeAnimationWakeLockHolders == 0) {
+                return
+            }
+            activeAnimationWakeLockHolders--
+            if (activeAnimationWakeLockHolders == 0 && wakeLock.isHeld) {
+                runCatching { wakeLock.release() }
+                    .onFailure { error -> Log.w(TAG, "Unable to release animation wake lock", error) }
+            }
+        }
+    }
+
+    /**
      * Saves the current spawn queue to SharedPreferences.
      */
     private fun saveSpawnQueue() {
@@ -639,5 +698,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
 
         private const val GLYPH_MATRIX_SIZE = 25 // 25x25 circular display
         private const val GLYPH_MATRIX_CENTER = GLYPH_MATRIX_SIZE / 2 // Center index (12, which is the 13th pixel)
+        private const val WAKE_LOCK_TIMEOUT_MS = 6000L
+        private const val WAKE_LOCK_TAG = "GlyphCatch:Animation"
     }
 }
