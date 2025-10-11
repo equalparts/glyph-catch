@@ -16,11 +16,10 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
         .toMap()
 
     private val screenOffChanceRules = listOf(
-        ScreenOffChanceRule(minMinutesAccumulated = 15, baseChance = 0.01),
-        ScreenOffChanceRule(minMinutesAccumulated = 30, baseChance = 0.05),
-        ScreenOffChanceRule(minMinutesAccumulated = 45, baseChance = 0.10),
-        ScreenOffChanceRule(minMinutesAccumulated = 60, baseChance = 0.20),
-        ScreenOffChanceRule(minMinutesAccumulated = 75, baseChance = 0.30)
+        ScreenOffChanceRule(minMinutesAccumulated = 15, baseChance = 0.03),
+        ScreenOffChanceRule(minMinutesAccumulated = 30, baseChance = 0.08),
+        ScreenOffChanceRule(minMinutesAccumulated = 45, baseChance = 0.12),
+        ScreenOffChanceRule(minMinutesAccumulated = 60, baseChance = 1.00)
     )
 
     private val rerollRules = listOf(
