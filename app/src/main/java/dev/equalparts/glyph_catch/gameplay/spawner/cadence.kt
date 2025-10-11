@@ -79,7 +79,7 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
                 roll = roll,
                 reason = SpawnDecisionReason.ROLL_SUCCEEDED,
                 initialPool = spawnOutcome.initialPoolName,
-                finalPool =  spawnOutcome.result.pool.name,
+                finalPool = spawnOutcome.result.pool.name,
                 rerollTargetPool = rerollOptions?.poolName,
                 rerollsRequested = rerollOptions?.rerolls ?: 0,
                 rerollsUsed = spawnOutcome.rerollsUsed
