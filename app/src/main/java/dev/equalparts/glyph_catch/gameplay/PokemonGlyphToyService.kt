@@ -13,6 +13,7 @@ import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.data.PokemonDatabase
 import dev.equalparts.glyph_catch.data.PreferencesManager
 import dev.equalparts.glyph_catch.debug.DebugCaptureManager
+import dev.equalparts.glyph_catch.debug.DebugExceptionTracker
 import dev.equalparts.glyph_catch.debug.DebugSnapshot
 import dev.equalparts.glyph_catch.gameplay.animation.AnimationCoordinator
 import dev.equalparts.glyph_catch.gameplay.animation.GlyphMatrixHelper
@@ -28,6 +29,7 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.floor
 import kotlin.random.Random
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -72,19 +74,20 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     private lateinit var debugCapture: DebugCaptureManager
     private var localClockJob: Job? = null
     private var aodActive = false
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        handleCoroutineException(throwable)
+    }
 
     /**
      * Called by the system when the service is first created.
      */
     override fun onCreate() {
         super.onCreate()
+        DebugExceptionTracker.install(applicationContext)
         db = PokemonDatabase.getInstance(applicationContext)
         preferencesManager = PreferencesManager(applicationContext)
-        debugCapture = DebugCaptureManager(
-            dao = db.debugEventDao(),
-            preferences = preferencesManager
-        )
-        coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        debugCapture = DebugCaptureManager.shared(applicationContext)
+        coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + coroutineExceptionHandler)
 
         frameFactory = GlyphMatrixHelper(applicationContext, GLYPH_MATRIX_SIZE)
         animationCoordinator = AnimationCoordinator(frameFactory) {
@@ -526,7 +529,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             val json = Json.encodeToString(persistentSpawns)
             applicationContext.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
                 .edit {
-                    putString(KEY_SPAWN_QUEUE, json)
+                    putString(PREFS_KEY_SPAWN_QUEUE, json)
                 }
             Log.d(TAG, "Saved ${persistentSpawns.size} spawns to storage")
         }
@@ -541,7 +544,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             displayedSpawn = null
 
             val prefs = applicationContext.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-            val json = prefs.getString(KEY_SPAWN_QUEUE, null) ?: return
+            val json = prefs.getString(PREFS_KEY_SPAWN_QUEUE, null) ?: return
 
             try {
                 val persistentSpawns: List<PersistentSpawn> = Json.decodeFromString(json)
@@ -562,7 +565,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                 sortQueueByRarity()
             } catch (e: Exception) {
                 Log.e(TAG, "Error restoring spawn queue", e)
-                prefs.edit { remove(KEY_SPAWN_QUEUE) }
+                prefs.edit { remove(PREFS_KEY_SPAWN_QUEUE) }
             }
         }
     }
@@ -606,11 +609,32 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         )
     }
 
+    /**
+     * Invoked when an unhandled exception occurs in a coroutine.
+     */
+    private fun handleCoroutineException(throwable: Throwable) {
+        Log.e(TAG, "Unhandled coroutine exception", throwable)
+        val snapshot = runCatching {
+            if (::gameplayContext.isInitialized) {
+                currentDebugSnapshot()
+            } else {
+                DebugSnapshot.EMPTY
+            }
+        }.getOrElse { DebugSnapshot.EMPTY }
+
+        DebugExceptionTracker.log(
+            context = applicationContext,
+            throwable = throwable,
+            snapshot = snapshot,
+            source = "coroutine"
+        )
+    }
+
     companion object {
         private const val TAG = "PokemonGlyphToy"
         private const val MAX_QUEUE_SIZE = 3
         private const val PREFS_NAME = "pokemon_glyph_toy_prefs"
-        private const val KEY_SPAWN_QUEUE = "spawn_queue"
+        private const val PREFS_KEY_SPAWN_QUEUE = "spawn_queue"
         private const val SLEEP_BONUS_DURATION_MILLIS = 24L * 60 * 60 * 1000
 
         private const val GLYPH_MATRIX_SIZE = 25 // 25x25 circular display
