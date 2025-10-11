@@ -12,6 +12,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import dev.equalparts.glyph_catch.debug.DebugEvent
+import dev.equalparts.glyph_catch.debug.DebugEventDao
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 
@@ -140,17 +142,25 @@ interface ActiveItemDao {
 }
 
 @Database(
-    entities = [CaughtPokemon::class, PokedexRecord::class, InventoryItem::class, ActiveItem::class],
-    version = 5,
+    entities = [
+        CaughtPokemon::class,
+        PokedexRecord::class,
+        InventoryItem::class,
+        ActiveItem::class,
+        DebugEvent::class
+    ],
+    version = 6,
     exportSchema = true,
     autoMigrations = [
-        AutoMigration(from = 4, to = 5)
+        AutoMigration(from = 4, to = 5),
+        AutoMigration(from = 5, to = 6)
     ]
 )
 abstract class PokemonDatabase : RoomDatabase() {
     abstract fun pokemonDao(): PokemonDao
     abstract fun inventoryDao(): InventoryDao
     abstract fun activeItemDao(): ActiveItemDao
+    abstract fun debugEventDao(): DebugEventDao
 
     companion object {
         @Volatile

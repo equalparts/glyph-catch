@@ -34,25 +34,13 @@ class SpawnRulesEngine(val rules: SpawnRules, private val random: Random = Rando
     /**
      * Pick a Pokémon to spawn based on the [SpawnRules] and current conditions.
      */
-    fun spawn(screenOffDurationMinutes: Int): SpawnResult? {
-        val pool = selectRandomPool() ?: return null
+    fun spawn(screenOffDurationMinutes: Int): SpawnResult {
+        val pool = selectRandomPool()
         return createSpawnResult(pool, screenOffDurationMinutes)
     }
 
-    /**
-     * Like [spawn], but picks a Pokémon from a specific pool (if active).
-     */
-    fun spawnFromPool(poolName: String, screenOffDurationMinutes: Int): SpawnResult? {
-        val pool = rules.pools.find { it.name.equals(poolName, ignoreCase = true) } ?: return null
-        return if (pool.isActive()) {
-            createSpawnResult(pool, screenOffDurationMinutes)
-        } else {
-            null
-        }
-    }
-
-    private fun createSpawnResult(pool: SpawnPool, screenOffDurationMinutes: Int): SpawnResult? {
-        val pokemon = selectRandomPokemon(pool) ?: return null
+    private fun createSpawnResult(pool: SpawnPool, screenOffDurationMinutes: Int): SpawnResult {
+        val pokemon = selectRandomPokemon(pool)
         return SpawnResult(
             pokemon,
             pool,
@@ -64,7 +52,7 @@ class SpawnRulesEngine(val rules: SpawnRules, private val random: Random = Rando
     /**
      * Picks a random pool using weighted random selection.
      */
-    fun selectRandomPool(): SpawnPool? {
+    fun selectRandomPool(): SpawnPool {
         val poolProbabilities = getCurrentPoolProbabilities()
 
         val totalWeight = poolProbabilities.values.sum()
@@ -73,21 +61,18 @@ class SpawnRulesEngine(val rules: SpawnRules, private val random: Random = Rando
         for ((poolName, percentage) in poolProbabilities) {
             r -= percentage
             if (r <= 0) {
-                return rules.pools.find { it.name == poolName }
+                return rules.pools.find { it.name == poolName }!!
             }
         }
 
-        return null
+        throw IllegalStateException("Pool selection failed")
     }
 
     /**
      * Picks a random Pokémon using weighted random selection.
      */
-    fun selectRandomPokemon(pool: SpawnPool): PokemonSpecies? {
+    fun selectRandomPokemon(pool: SpawnPool): PokemonSpecies {
         val pokemonDistribution = getPokemonProbabilities(pool)
-        if (pokemonDistribution.isEmpty()) {
-            return null
-        }
 
         val totalWeight = pokemonDistribution.values.sum()
         var r = random.nextFloat() * totalWeight
@@ -99,7 +84,7 @@ class SpawnRulesEngine(val rules: SpawnRules, private val random: Random = Rando
             }
         }
 
-        return pokemonDistribution.keys.firstOrNull()
+        throw IllegalStateException("Pokemon selection failed for pool ${pool.name}")
     }
 
     private fun getPokemonProbabilities(pool: SpawnPool): Map<PokemonSpecies, Float> {
