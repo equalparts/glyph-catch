@@ -67,7 +67,7 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
             )
         }
 
-        val rerollOptions = decideRerollOptions(nowMillis, context.screenOffMinutes)
+        val rerollOptions = decideRerollOptions(nowMillis, context)
         val spawnOutcome = spawnWithReroll(nowMillis, context.screenOffMinutes, rerollOptions)
 
         return SpawnDecision(
@@ -134,8 +134,13 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
         )
     }
 
-    private fun decideRerollOptions(nowMillis: Long, screenOffMinutes: Int): RerollOptions? {
-        if (rerollPools.isEmpty() || screenOffMinutes < MIN_SCREEN_OFF_MINUTES_FOR_REROLL) {
+    private fun decideRerollOptions(
+        nowMillis: Long,
+        context: SpawnContext,
+    ): RerollOptions? {
+        if (rerollPools.isEmpty()
+            || context.isDuringSleepWindow
+            || context.screenOffMinutes < MIN_SCREEN_OFF_MINUTES_FOR_REROLL) {
             return null
         }
 
