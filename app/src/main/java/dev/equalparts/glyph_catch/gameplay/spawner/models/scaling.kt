@@ -5,14 +5,13 @@ import kotlin.math.min
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.ZERO
 
-class SpawnScaling(private val sleepMinutesProvider: () -> Int, private val sleepBonusProvider: () -> Boolean) {
+class SpawnScaling(private val minutesProvider: () -> Int, private val sleepBonusProvider: () -> Boolean) {
     constructor(context: GameplayContext) : this(
-        sleepMinutesProvider = { context.sleep.minutesOutsideSleep },
+        minutesProvider = { context.phone.minutesOffOutsideBedtime },
         sleepBonusProvider = { context.sleep.hasSleepBonus }
     )
 
-    val minutes: Int get() = sleepMinutesProvider()
-    val minutesOff: Int get() = minutes
+    val minutes: Int get() = minutesProvider()
 
     fun timeBoost(gain: Float, over: Duration, startAfter: Duration = ZERO, sourceMinutes: Int = minutes): Float {
         val gainValue = gain.coerceAtLeast(0f)

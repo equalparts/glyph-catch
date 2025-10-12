@@ -224,10 +224,10 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         val now = System.currentTimeMillis()
         val spawnContext = SpawnContext(
             hasQueuedSpawns = spawnQueue.isNotEmpty(),
-            isInteractive = gameplayContext.phone.isInteractive,
-            screenOffMinutes = gameplayContext.phone.minutesOff,
-            pokedexCount = gameplayContext.trainer.pokedexCount,
-            isDuringSleepWindow = gameplayContext.sleep.isDuringSleepWindow
+            phoneIsInteractive = gameplayContext.phone.isInteractive,
+            phoneMinutesOff = gameplayContext.phone.minutesOff,
+            trainerPokedexCount = gameplayContext.trainer.pokedexCount,
+            isBedtime = gameplayContext.sleep.isBedtime
         )
 
         val decision = cadenceController.maybeSpawn(now, spawnContext)
@@ -236,29 +236,21 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             addToQueue(spawned)
         }
 
-        val debugSnapshot = currentDebugSnapshot()
-        val decisionDebug = decision.debug
-
         coroutineScope?.launch {
-            debugCapture.log("tick", debugSnapshot) {
+            debugCapture.log("tick", currentDebugSnapshot()) {
                 buildJsonObject {
-                    put("timestamp", JsonPrimitive(now))
-                    put("screenOffMinutes", JsonPrimitive(spawnContext.screenOffMinutes))
-                    put("pokedexCount", JsonPrimitive(spawnContext.pokedexCount))
-                    put("hadQueuedSpawnsBefore", JsonPrimitive(spawnContext.hasQueuedSpawns))
-                    put("phoneInteractive", JsonPrimitive(spawnContext.isInteractive))
                     put(
                         "decision",
                         buildJsonObject {
-                            put("reason", JsonPrimitive(decisionDebug.reason.name.lowercase(Locale.US)))
-                            put("minutesAccumulated", JsonPrimitive(decisionDebug.minutesAccumulated))
-                            put("baseChance", JsonPrimitive(decisionDebug.baseChance))
-                            decisionDebug.roll?.let { put("roll", JsonPrimitive(it)) }
-                            decisionDebug.initialPool?.let { put("initialPool", JsonPrimitive(it)) }
-                            decisionDebug.finalPool?.let { put("finalPool", JsonPrimitive(it)) }
-                            decisionDebug.rerollTargetPool?.let { put("rerollTargetPool", JsonPrimitive(it)) }
-                            put("rerollsRequested", JsonPrimitive(decisionDebug.rerollsRequested))
-                            put("rerollsUsed", JsonPrimitive(decisionDebug.rerollsUsed))
+                            put("reason", JsonPrimitive(decision.debug.reason.name.lowercase(Locale.US)))
+                            put("minutesAccumulated", JsonPrimitive(decision.debug.minutesAccumulated))
+                            put("baseChance", JsonPrimitive(decision.debug.baseChance))
+                            decision.debug.roll?.let { put("roll", JsonPrimitive(it)) }
+                            decision.debug.initialPool?.let { put("initialPool", JsonPrimitive(it)) }
+                            decision.debug.finalPool?.let { put("finalPool", JsonPrimitive(it)) }
+                            decision.debug.rerollTargetPool?.let { put("rerollTargetPool", JsonPrimitive(it)) }
+                            put("rerollsRequested", JsonPrimitive(decision.debug.rerollsRequested))
+                            put("rerollsUsed", JsonPrimitive(decision.debug.rerollsUsed))
                         }
                     )
                     spawned?.let { spawn ->
@@ -457,8 +449,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             val currentSpawn = synchronized(spawnQueue) {
                 spawnQueue.firstOrNull()
             }
-            val snapshot = currentDebugSnapshot()
-            debugCapture.log("input_long_press", snapshot) {
+            debugCapture.log("input_long_press", currentDebugSnapshot()) {
                 buildJsonObject {
                     put("hadSpawn", JsonPrimitive(currentSpawn != null))
                     currentSpawn?.let { spawn ->
@@ -652,19 +643,18 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     }
 
     /**
-     * Captures a gameplay snapshot for debug logging.
+     * Captures a game state snapshot for debug logging.
      */
     private fun currentDebugSnapshot(queueSizeOverride: Int? = null): DebugSnapshot {
         val queueSize = queueSizeOverride ?: synchronized(spawnQueue) { spawnQueue.size }
         return DebugSnapshot(
-            batteryPercent = gameplayContext.phone.battery,
-            isInteractive = gameplayContext.phone.isInteractive,
-            minutesScreenOff = gameplayContext.phone.minutesOff,
-            minutesScreenOffForSpawn = gameplayContext.phone.minutesOffForSpawns,
+            phoneBattery = gameplayContext.phone.battery,
+            phoneIsInteractive = gameplayContext.phone.isInteractive,
+            phoneMinutesOff = gameplayContext.phone.minutesOff,
+            phoneMinutesOffOutsideBedtime = gameplayContext.phone.minutesOffOutsideBedtime,
             queueSize = queueSize,
-            sleepMinutesOutside = gameplayContext.sleep.minutesOutsideSleep,
             hasSleepBonus = gameplayContext.sleep.hasSleepBonus,
-            isDuringSleepWindow = gameplayContext.sleep.isDuringSleepWindow
+            isBedtime = gameplayContext.sleep.isBedtime
         )
     }
 

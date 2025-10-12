@@ -35,14 +35,13 @@ class DebugCaptureManager(
         val entity = DebugEvent(
             timestamp = System.currentTimeMillis(),
             eventType = eventType,
-            batteryPercent = snapshot.batteryPercent,
-            isInteractive = snapshot.isInteractive,
-            minutesScreenOff = snapshot.minutesScreenOff,
-            minutesScreenOffForSpawn = snapshot.minutesScreenOffForSpawn,
+            phoneBattery = snapshot.phoneBattery,
+            phoneIsInteractive = snapshot.phoneIsInteractive,
+            phoneMinutesOff = snapshot.phoneMinutesOff,
+            phoneMinutesOffOutsideBedtime = snapshot.phoneMinutesOffOutsideBedtime,
             queueSize = snapshot.queueSize,
-            sleepMinutesOutside = snapshot.sleepMinutesOutside,
             hasSleepBonus = snapshot.hasSleepBonus,
-            isDuringSleepWindow = snapshot.isDuringSleepWindow,
+            isBedtime = snapshot.isBedtime,
             payloadJson = json.encodeToString(payload)
         )
 

@@ -8,7 +8,7 @@ class SpawnScalingTest {
     @Test
     fun `time boost caps at gain`() {
         val scaling = SpawnScaling(
-            sleepMinutesProvider = { 120 },
+            minutesProvider = { 120 },
             sleepBonusProvider = { false }
         )
 
@@ -20,7 +20,7 @@ class SpawnScalingTest {
     @Test
     fun `time boost respects ramp progress`() {
         val scaling = SpawnScaling(
-            sleepMinutesProvider = { 45 },
+            minutesProvider = { 45 },
             sleepBonusProvider = { false }
         )
 
@@ -32,7 +32,7 @@ class SpawnScalingTest {
     @Test
     fun `time boost ignores minutes before start threshold`() {
         val scaling = SpawnScaling(
-            sleepMinutesProvider = { 40 },
+            minutesProvider = { 40 },
             sleepBonusProvider = { false }
         )
 
@@ -44,7 +44,7 @@ class SpawnScalingTest {
     @Test
     fun `time boost can use custom source minutes`() {
         val scaling = SpawnScaling(
-            sleepMinutesProvider = { 0 },
+            minutesProvider = { 0 },
             sleepBonusProvider = { false }
         )
 
@@ -56,11 +56,11 @@ class SpawnScalingTest {
     @Test
     fun `sleep bonus only applies when active`() {
         val inactive = SpawnScaling(
-            sleepMinutesProvider = { 0 },
+            minutesProvider = { 0 },
             sleepBonusProvider = { false }
         )
         val active = SpawnScaling(
-            sleepMinutesProvider = { 0 },
+            minutesProvider = { 0 },
             sleepBonusProvider = { true }
         )
 
@@ -71,11 +71,10 @@ class SpawnScalingTest {
     @Test
     fun `minutes property reflects provider`() {
         val scaling = SpawnScaling(
-            sleepMinutesProvider = { 37 },
+            minutesProvider = { 37 },
             sleepBonusProvider = { false }
         )
 
         assertEquals(37, scaling.minutes)
-        assertEquals(37, scaling.minutesOff)
     }
 }

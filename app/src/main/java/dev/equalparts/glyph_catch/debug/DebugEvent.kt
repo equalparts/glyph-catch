@@ -21,14 +21,13 @@ data class DebugEvent(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val timestamp: Long,
     val eventType: String,
-    val batteryPercent: Int,
-    val isInteractive: Boolean,
-    val minutesScreenOff: Int,
-    val minutesScreenOffForSpawn: Int,
+    val phoneBattery: Int,
+    val phoneIsInteractive: Boolean,
+    val phoneMinutesOff: Int,
+    val phoneMinutesOffOutsideBedtime: Int,
     val queueSize: Int,
-    val sleepMinutesOutside: Int,
     val hasSleepBonus: Boolean,
-    val isDuringSleepWindow: Boolean,
+    val isBedtime: Boolean,
     @ColumnInfo(name = "payloadJson") val payloadJson: String
 )
 

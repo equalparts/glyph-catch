@@ -29,7 +29,7 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
     )
 
     fun maybeSpawn(nowMillis: Long, context: SpawnContext, random: Random = Random.Default): SpawnDecision {
-        if (context.isInteractive) {
+        if (context.phoneIsInteractive) {
             return SpawnDecision(
                 null,
                 SpawnDecisionDebug(
@@ -46,7 +46,7 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
             )
         }
 
-        val minutesAccumulated = history.computeScreenOffMinutesAccumulated(context.screenOffMinutes)
+        val minutesAccumulated = history.computeScreenOffMinutesAccumulated(context.phoneMinutesOff)
         val chance = spawnChance(context, minutesAccumulated)
 
         val roll = random.nextFloat()
@@ -68,7 +68,7 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
         }
 
         val rerollOptions = decideRerollOptions(nowMillis, context)
-        val spawnOutcome = spawnWithReroll(nowMillis, context.screenOffMinutes, rerollOptions)
+        val spawnOutcome = spawnWithReroll(nowMillis, context.phoneMinutesOff, rerollOptions)
 
         return SpawnDecision(
             spawnOutcome.result,
@@ -87,7 +87,7 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
     }
 
     private fun spawnChance(context: SpawnContext, minutesAccumulated: Int): Double {
-        if (context.pokedexCount == 0 && !context.hasQueuedSpawns) {
+        if (context.trainerPokedexCount == 0 && !context.hasQueuedSpawns) {
             return FIRST_CATCH_CHANCE
         }
 
@@ -96,7 +96,7 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
             ?.baseChance
             ?: return 0.0
 
-        return if (context.isDuringSleepWindow) {
+        return if (context.isBedtime) {
             baseChance.coerceAtMost(MAX_SLEEP_WINDOW_CHANCE)
         } else {
             baseChance
@@ -139,8 +139,8 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
         context: SpawnContext,
     ): RerollOptions? {
         if (rerollPools.isEmpty()
-            || context.isDuringSleepWindow
-            || context.screenOffMinutes < MIN_SCREEN_OFF_MINUTES_FOR_REROLL) {
+            || context.isBedtime
+            || context.phoneMinutesOff < MIN_SCREEN_OFF_MINUTES_FOR_REROLL) {
             return null
         }
 
@@ -212,6 +212,7 @@ class SpawnHistoryTracker(private val preferences: PreferencesManager, private v
         updateLastSpawnScreenOffMinutes(spawn.screenOffDurationMinutes)
         updatePoolTimestamp(spawn.pool.name, spawn.spawnedAtMillis)
     }
+
     fun recordCatch(spawn: SpawnResult, caughtAtMillis: Long) {
         val timestamp = max(spawn.spawnedAtMillis, caughtAtMillis)
         updatePoolTimestamp(spawn.pool.name, timestamp)
@@ -250,10 +251,10 @@ class SpawnHistoryTracker(private val preferences: PreferencesManager, private v
 
 data class SpawnContext(
     val hasQueuedSpawns: Boolean,
-    val isInteractive: Boolean,
-    val screenOffMinutes: Int,
-    val pokedexCount: Int,
-    val isDuringSleepWindow: Boolean
+    val phoneIsInteractive: Boolean,
+    val phoneMinutesOff: Int,
+    val trainerPokedexCount: Int,
+    val isBedtime: Boolean
 )
 
 data class SpawnDecision(val spawn: SpawnResult?, val debug: SpawnDecisionDebug)

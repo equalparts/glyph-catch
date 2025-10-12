@@ -4,25 +4,23 @@ package dev.equalparts.glyph_catch.debug
  * Snapshot of device/gameplay state captured alongside each debug event.
  */
 data class DebugSnapshot(
-    val batteryPercent: Int,
-    val isInteractive: Boolean,
-    val minutesScreenOff: Int,
-    val minutesScreenOffForSpawn: Int,
+    val phoneBattery: Int,
+    val phoneIsInteractive: Boolean,
+    val phoneMinutesOff: Int,
+    val phoneMinutesOffOutsideBedtime: Int,
     val queueSize: Int,
-    val sleepMinutesOutside: Int,
     val hasSleepBonus: Boolean,
-    val isDuringSleepWindow: Boolean
+    val isBedtime: Boolean
 ) {
     companion object {
         val EMPTY = DebugSnapshot(
-            batteryPercent = 0,
-            isInteractive = false,
-            minutesScreenOff = 0,
-            minutesScreenOffForSpawn = 0,
+            phoneBattery = 0,
+            phoneIsInteractive = false,
+            phoneMinutesOff = 0,
+            phoneMinutesOffOutsideBedtime = 0,
             queueSize = 0,
-            sleepMinutesOutside = 0,
             hasSleepBonus = false,
-            isDuringSleepWindow = false
+            isBedtime = false
         )
     }
 }

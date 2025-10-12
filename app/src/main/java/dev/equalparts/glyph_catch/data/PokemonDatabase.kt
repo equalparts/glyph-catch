@@ -5,13 +5,16 @@ import androidx.room.AutoMigration
 import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
+import androidx.room.DeleteColumn
 import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.RenameColumn
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.AutoMigrationSpec
 import dev.equalparts.glyph_catch.debug.DebugEvent
 import dev.equalparts.glyph_catch.debug.DebugEventDao
 import java.util.UUID
@@ -149,11 +152,12 @@ interface ActiveItemDao {
         ActiveItem::class,
         DebugEvent::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 4, to = 5),
-        AutoMigration(from = 5, to = 6)
+        AutoMigration(from = 5, to = 6),
+        AutoMigration(from = 6, to = 7, spec = DebugEventsMigration6To7::class)
     ]
 )
 abstract class PokemonDatabase : RoomDatabase() {
@@ -177,3 +181,13 @@ abstract class PokemonDatabase : RoomDatabase() {
         }
     }
 }
+
+@RenameColumn.Entries(
+    RenameColumn("debug_events", "batteryPercent", "phoneBattery"),
+    RenameColumn("debug_events", "isInteractive", "phoneIsInteractive"),
+    RenameColumn("debug_events", "minutesScreenOff", "phoneMinutesOff"),
+    RenameColumn("debug_events", "minutesScreenOffForSpawn", "phoneMinutesOffOutsideBedtime"),
+    RenameColumn("debug_events", "isDuringSleepWindow", "isBedtime")
+)
+@DeleteColumn.Entries(DeleteColumn("debug_events", "sleepMinutesOutside"))
+class DebugEventsMigration6To7 : AutoMigrationSpec

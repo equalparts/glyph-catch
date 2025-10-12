@@ -141,8 +141,8 @@ data class GameplayContext(
         var battery: Int = 100
         var isInteractive: Boolean = false
 
-        val minutesOffForSpawns: Int
-            get() = sleep.minutesOutsideSleep
+        val minutesOffOutsideBedtime: Int
+            get() = sleep.minutesOffOutsideBedtime
 
         /**
          * Call this periodically to refresh the data.
@@ -167,83 +167,80 @@ data class GameplayContext(
         }
     }
 
+    /**
+     * Information about the sleep schedule mechanic.
+     */
     inner class SleepState {
         private val prefs = PreferencesManager(applicationContext)
         private val sleepDurationMinutes = 8 * 60
         private val sleepGoalMinutes = 450
 
         private var cachedBedtimeMinutes = prefs.bedtimeMinutes
-        private var lastWindowStart: ZonedDateTime? = null
-        private var goalReachedThisWindow = false
-        private var bonusActive = false
-        private var minutesOffAtWindowStart = 0
-        private var minutesOffBaseline = 0
-        private var outsideSleepMinutes = 0
-        private var wasDuringSleepWindow = false
+        private var previousBedtimeStart: ZonedDateTime? = null
+        private var sleepGoalMetThisBedtime = false
+        private var minutesOffAtSleepStart = 0
+        private var baselineMinutesOff = 0
+        private var wasBedtime = false
 
-        var isDuringSleepWindow: Boolean = false
+        var isBedtime: Boolean = false
             private set
 
-        val hasSleepBonus: Boolean
-            get() = bonusActive
+        var hasSleepBonus: Boolean = false
+            private set
 
-        val minutesOutsideSleep: Int
-            get() = outsideSleepMinutes
+        var minutesOffOutsideBedtime: Int = 0
+            private set
 
         val bedtime: LocalTime
             get() = LocalTime.of(cachedBedtimeMinutes / 60, cachedBedtimeMinutes % 60)
 
+        /**
+         * Call this periodically to refresh the data.
+         */
         fun refresh(now: ZonedDateTime, isInteractive: Boolean, currentMinutesOff: Int) {
             val bedtimeMinutes = prefs.bedtimeMinutes
             if (bedtimeMinutes != cachedBedtimeMinutes) {
                 cachedBedtimeMinutes = bedtimeMinutes
             }
 
-            val windowStart = computeWindowStart(now, cachedBedtimeMinutes)
-            val windowChanged = lastWindowStart != windowStart
-            if (windowChanged) {
-                goalReachedThisWindow = false
-                bonusActive = false
-                minutesOffAtWindowStart = currentMinutesOff
+            val latestBedtimeStart = computeLatestBedtimeStart(now, cachedBedtimeMinutes)
+            if (previousBedtimeStart != latestBedtimeStart) { // next sleep cycle
+                sleepGoalMetThisBedtime = false
+                hasSleepBonus = false
+                minutesOffAtSleepStart = currentMinutesOff
             }
-            lastWindowStart = windowStart
+            previousBedtimeStart = latestBedtimeStart
 
-            val windowEnd = windowStart.plusMinutes(sleepDurationMinutes.toLong())
-            val currentlyInWindow = !now.isBefore(windowStart) && now.isBefore(windowEnd)
+            val isInBedtime = isInBedtime(now, latestBedtimeStart)
+            if (!wasBedtime && isInBedtime) { // sleep cycle started
+                minutesOffAtSleepStart = currentMinutesOff
+            }
 
-            if (currentlyInWindow) {
-                if (!wasDuringSleepWindow) {
-                    minutesOffAtWindowStart = currentMinutesOff
-                }
-                if (!isInteractive) {
-                    val minutesInWindow = currentMinutesOff - minutesOffAtWindowStart
-                    if (minutesInWindow >= sleepGoalMinutes) {
-                        goalReachedThisWindow = true
+            if (isInBedtime) {
+                trackSleepGoal(isInteractive, currentMinutesOff)
+                baselineMinutesOff = currentMinutesOff
+                minutesOffOutsideBedtime = 0
+            } else {
+                if (wasBedtime) {
+                    baselineMinutesOff = currentMinutesOff
+                    minutesOffOutsideBedtime = 0
+                    if (sleepGoalMetThisBedtime) {
+                        hasSleepBonus = true
                     }
                 }
-                minutesOffBaseline = currentMinutesOff
-                outsideSleepMinutes = 0
-            } else {
-                if (wasDuringSleepWindow) {
-                    minutesOffBaseline = currentMinutesOff
-                    outsideSleepMinutes = 0
-                }
-                outsideSleepMinutes = (currentMinutesOff - minutesOffBaseline).coerceAtLeast(0)
-                if (goalReachedThisWindow) {
-                    bonusActive = true
-                }
+                minutesOffOutsideBedtime = (currentMinutesOff - baselineMinutesOff).coerceAtLeast(0)
             }
 
             if (isInteractive) {
-                minutesOffBaseline = currentMinutesOff
-                outsideSleepMinutes = 0
+                baselineMinutesOff = 0
+                minutesOffOutsideBedtime = 0
             }
 
-            isDuringSleepWindow = currentlyInWindow
-            wasDuringSleepWindow = currentlyInWindow
+            isBedtime = isInBedtime
+            wasBedtime = isInBedtime
         }
 
-        private fun computeWindowStart(now: ZonedDateTime, bedtimeMinutes: Int): ZonedDateTime {
+        private fun computeLatestBedtimeStart(now: ZonedDateTime, bedtimeMinutes: Int): ZonedDateTime {
             val bedtimeClock = LocalTime.of(bedtimeMinutes / 60, bedtimeMinutes % 60)
             val candidate = now
                 .withHour(bedtimeClock.hour)
@@ -255,6 +252,20 @@ data class GameplayContext(
                 candidate.minusDays(1)
             } else {
                 candidate
+            }
+        }
+
+        private fun isInBedtime(now: ZonedDateTime, windowStart: ZonedDateTime): Boolean {
+            val windowEnd = windowStart.plusMinutes(sleepDurationMinutes.toLong())
+            return !now.isBefore(windowStart) && now.isBefore(windowEnd)
+        }
+
+        private fun trackSleepGoal(isInteractive: Boolean, currentMinutesOff: Int) {
+            if (!isInteractive) {
+                val minutesSlept = currentMinutesOff - minutesOffAtSleepStart
+                if (minutesSlept >= sleepGoalMinutes) {
+                    sleepGoalMetThisBedtime = true
+                }
             }
         }
     }
