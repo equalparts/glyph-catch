@@ -3,7 +3,6 @@ package dev.equalparts.glyph_catch.data
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import java.util.Locale
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -79,13 +78,7 @@ class PreferencesManager(context: Context) {
 
     var lastSpawnScreenOffMinutes: Int
         get() = prefs.getInt(KEY_LAST_SPAWN_SCREEN_OFF_MINUTES, 0)
-        set(value) = prefs.edit { putInt(KEY_LAST_SPAWN_SCREEN_OFF_MINUTES, value.coerceAtLeast(0)) }
-
-    fun getLastSpawnAtForPool(poolName: String): Long = prefs.getLong(poolTimestampKey(poolName), 0L)
-
-    fun setLastSpawnAtForPool(poolName: String, timestamp: Long) {
-        prefs.edit { putLong(poolTimestampKey(poolName), timestamp) }
-    }
+        set(value) = prefs.edit { putInt(KEY_LAST_SPAWN_SCREEN_OFF_MINUTES, value) }
 
     fun watchGlyphToyHasTicked(): Flow<Boolean> = callbackFlow {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
@@ -226,7 +219,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_SLEEP_BONUS_EXPIRES_AT = "sleep_bonus_expires_at"
         private const val KEY_DEBUG_CAPTURE_ENABLED = "debug_capture_enabled"
         private const val KEY_LAST_SPAWN_SCREEN_OFF_MINUTES = "last_spawn_screen_off_minutes"
-        private const val KEY_LAST_POOL_PREFIX = "last_regular_spawn_"
         private const val MINUTES_PER_DAY = 24 * 60
         private const val DEFAULT_BEDTIME_MINUTES = 23 * 60
         private const val SLEEP_BONUS_POLL_ACTIVE_MILLIS = 30_000L
@@ -245,8 +237,4 @@ class PreferencesManager(context: Context) {
         )
     }
 
-    private fun poolTimestampKey(poolName: String): String {
-        val normalized = poolName.trim().lowercase(Locale.US)
-        return KEY_LAST_POOL_PREFIX + normalized
-    }
 }

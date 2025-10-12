@@ -199,54 +199,45 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
 }
 
 class SpawnHistoryTracker(private val preferences: PreferencesManager, private val pokemonDao: PokemonDao) {
+    private val activeSpawnTimesByPool = mutableMapOf<String, Long>()
     var lastSpawnScreenOffMinutes: Int = preferences.lastSpawnScreenOffMinutes
         private set
 
-    fun syncFromQueue(activeQueue: List<SpawnResult>) {
-        val latest = activeQueue.maxByOrNull { it.spawnedAtMillis } ?: return
-        updateLastSpawnScreenOffMinutes(latest.screenOffDurationMinutes)
-        activeQueue.forEach { updatePoolTimestamp(it.pool.name, it.spawnedAtMillis) }
-    }
-
-    fun recordSpawn(spawn: SpawnResult) {
-        updateLastSpawnScreenOffMinutes(spawn.screenOffDurationMinutes)
-        updatePoolTimestamp(spawn.pool.name, spawn.spawnedAtMillis)
-    }
-
-    fun recordCatch(spawn: SpawnResult, caughtAtMillis: Long) {
-        val timestamp = max(spawn.spawnedAtMillis, caughtAtMillis)
-        updatePoolTimestamp(spawn.pool.name, timestamp)
+    fun updateActiveQueue(activeQueue: List<SpawnResult>, newSpawn: SpawnResult? = null) {
+        newSpawn?.let { updateLastSpawnScreenOffMinutes(it.screenOffDurationMinutes) }
+        activeSpawnTimesByPool.clear()
+        for (spawn in activeQueue) {
+            val current = activeSpawnTimesByPool[spawn.pool.name]
+            if (current == null || spawn.spawnedAtMillis > current) {
+                activeSpawnTimesByPool[spawn.pool.name] = spawn.spawnedAtMillis
+            }
+        }
     }
 
     fun bestKnownSpawnTime(poolName: String): Long {
-        val fromPrefs = preferences.getLastSpawnAtForPool(poolName)
-        val fromDb = loadLastCaughtAt(poolName)
-        return max(fromPrefs, fromDb)
+        val fromActiveQueue = activeSpawnTimesByPool[poolName] ?: 0L
+        val fromDb = loadLastSpawnedAt(poolName)
+        return max(fromActiveQueue, fromDb)
     }
 
     fun computeScreenOffMinutesAccumulated(currentMinutes: Int): Int =
         (currentMinutes - lastSpawnScreenOffMinutes).coerceAtLeast(0)
 
+    fun resetAfterScreenOn() {
+        if (lastSpawnScreenOffMinutes != 0) {
+            updateLastSpawnScreenOffMinutes(0)
+        }
+    }
+
     fun getPlayerStartDate(): Long = preferences.playerStartDate
 
     private fun updateLastSpawnScreenOffMinutes(latest: Int) {
-        val sanitized = latest.coerceAtLeast(0)
-        lastSpawnScreenOffMinutes = sanitized
-        preferences.lastSpawnScreenOffMinutes = sanitized
+        lastSpawnScreenOffMinutes = latest
+        preferences.lastSpawnScreenOffMinutes = latest
     }
 
-    private fun updatePoolTimestamp(poolName: String, timestamp: Long) {
-        if (timestamp <= 0L) {
-            return
-        }
-        val stored = preferences.getLastSpawnAtForPool(poolName)
-        if (timestamp > stored) {
-            preferences.setLastSpawnAtForPool(poolName, timestamp)
-        }
-    }
-
-    private fun loadLastCaughtAt(poolName: String): Long =
-        runBlocking { pokemonDao.getLastCaughtAtForPool(poolName) } ?: 0L
+    private fun loadLastSpawnedAt(poolName: String): Long =
+        runBlocking { pokemonDao.getLastSpawnedAtForPool(poolName) } ?: 0L
 }
 
 data class SpawnContext(

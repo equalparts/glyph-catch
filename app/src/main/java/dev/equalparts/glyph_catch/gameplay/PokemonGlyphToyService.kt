@@ -152,7 +152,6 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     override fun performOnServiceConnected(context: Context, glyphMatrixManager: GlyphMatrixManager) {
         restoreSpawnQueue()
-        spawnHistory.syncFromQueue(spawnQueue)
         aodActive = false
         tick()
         startLocalClock()
@@ -203,6 +202,10 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     private fun tick() {
         gameplayContext.phone.refresh()
         gameplayContext.trainer.refresh()
+
+        if (gameplayContext.phone.isInteractive) {
+            spawnHistory.resetAfterScreenOn()
+        }
 
         if (gameplayContext.sleep.hasSleepBonus) {
             val now = System.currentTimeMillis()
@@ -276,12 +279,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     private fun addToQueue(spawn: SpawnResult) {
         var removed: SpawnResult? = null
-        var queueSizeBefore = 0
-        var queueSizeAfterRemoval = 0
-        var queueSizeAfterAdd = 0
 
         synchronized(spawnQueue) {
-            queueSizeBefore = spawnQueue.size
             if (spawnQueue.size >= MAX_QUEUE_SIZE) {
                 val indexToRemove = spawnQueue.indexOfFirst { !it.pool.isSpecial }
                 if (indexToRemove != -1) {
@@ -293,44 +292,36 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                 }
             }
 
-            queueSizeAfterRemoval = spawnQueue.size
             spawnQueue.add(spawn)
             Log.d(TAG, "Spawned ${spawn.pokemon.name} from ${spawn.pool.name} pool")
             sortQueueByRarity()
-            spawnHistory.recordSpawn(spawn)
-            queueSizeAfterAdd = spawnQueue.size
+            spawnHistory.updateActiveQueue(spawnQueue, newSpawn = spawn)
         }
 
-        val baseSnapshot = currentDebugSnapshot(queueSizeAfterAdd)
-        val removalSnapshot = removed?.let { baseSnapshot.copy(queueSize = queueSizeAfterRemoval) }
+        saveSpawnQueue()
+
+        val snapshot = currentDebugSnapshot()
 
         coroutineScope?.launch {
             removed?.let { removedSpawn ->
-                debugCapture.log("queue_evicted", removalSnapshot ?: baseSnapshot) {
+                debugCapture.log("queue_evicted", snapshot) {
                     buildJsonObject {
                         put("reason", JsonPrimitive("fifo_overflow"))
                         put("removedPokemonId", JsonPrimitive(removedSpawn.pokemon.id))
                         put("removedPokemonName", JsonPrimitive(removedSpawn.pokemon.name))
                         put("removedPool", JsonPrimitive(removedSpawn.pool.name))
-                        put("queueSizeBefore", JsonPrimitive(queueSizeBefore))
-                        put("queueSizeAfterRemoval", JsonPrimitive(queueSizeAfterRemoval))
                     }
                 }
             }
 
-            debugCapture.log("spawn_enqueued", baseSnapshot) {
+            debugCapture.log("spawn_enqueued", snapshot) {
                 buildJsonObject {
                     put("pokemonId", JsonPrimitive(spawn.pokemon.id))
                     put("pokemonName", JsonPrimitive(spawn.pokemon.name))
                     put("pool", JsonPrimitive(spawn.pool.name))
-                    put("screenOffMinutes", JsonPrimitive(spawn.screenOffDurationMinutes))
-                    put("queueSizeBefore", JsonPrimitive(queueSizeBefore))
-                    put("queueSizeAfter", JsonPrimitive(queueSizeAfterAdd))
                 }
             }
         }
-
-        saveSpawnQueue()
     }
 
     /**
@@ -391,7 +382,6 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      * Show a digital clock on the Glyph Matrix.
      */
     private fun showDigitalWatch() {
-        // TODO move to separate class
         val charHeight = 5
         val charSpacing = 1
 
@@ -474,6 +464,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         try {
             val caughtPokemon = CaughtPokemon(
                 speciesId = spawn.pokemon.id,
+                spawnedAt = spawn.spawnedAtMillis,
                 level = randomLevelForSpecies(spawn.pokemon.id),
                 exp = 0,
                 screenOffDurationMinutes = spawn.screenOffDurationMinutes,
@@ -483,11 +474,12 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             )
             db.pokemonDao().insert(caughtPokemon)
             Log.d(TAG, "Successfully saved ${spawn.pokemon.name} to database")
-            spawnHistory.recordCatch(spawn, caughtPokemon.caughtAt)
 
-            synchronized(spawnQueue) {
+            val queueSnapshot = synchronized(spawnQueue) {
                 spawnQueue.remove(spawn)
+                spawnQueue.toList()
             }
+            spawnHistory.updateActiveQueue(queueSnapshot)
             saveSpawnQueue()
 
             val snapshot = currentDebugSnapshot()
@@ -506,14 +498,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             showCatchAnimation()
         } catch (e: Exception) {
             Log.e(TAG, "Error saving caught Pokémon", e)
-            val snapshot = currentDebugSnapshot()
-            debugCapture.log("catch_error", snapshot) {
-                buildJsonObject {
-                    put("pokemonId", JsonPrimitive(spawn.pokemon.id))
-                    put("pokemonName", JsonPrimitive(spawn.pokemon.name))
-                    put("message", JsonPrimitive(e.message ?: "unknown_error"))
-                }
-            }
+            DebugExceptionTracker.log(applicationContext, e, currentDebugSnapshot(), "catch_pokemon")
         }
     }
 
@@ -589,12 +574,16 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      * Restores the spawn queue from SharedPreferences.
      */
     private fun restoreSpawnQueue() {
+        val prefs = applicationContext.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        val json = prefs.getString(PREFS_KEY_SPAWN_QUEUE, null) ?: run {
+            spawnHistory.updateActiveQueue(emptyList())
+            return
+        }
+
+        var snapshot: List<SpawnResult>? = null
         synchronized(spawnQueue) {
             spawnQueue.clear()
             displayedSpawn = null
-
-            val prefs = applicationContext.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-            val json = prefs.getString(PREFS_KEY_SPAWN_QUEUE, null) ?: return
 
             try {
                 val persistentSpawns: List<PersistentSpawn> = Json.decodeFromString(json)
@@ -613,11 +602,16 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                 }
                 Log.d(TAG, "Restored ${spawnQueue.size} spawns from storage")
                 sortQueueByRarity()
+                snapshot = spawnQueue.toList()
             } catch (e: Exception) {
                 Log.e(TAG, "Error restoring spawn queue", e)
                 prefs.edit { remove(PREFS_KEY_SPAWN_QUEUE) }
+                DebugExceptionTracker.log(applicationContext, e, currentDebugSnapshot(), "restore_spawn_queue")
             }
         }
+
+        snapshot?.let { spawnHistory.updateActiveQueue(it) }
+            ?: spawnHistory.updateActiveQueue(emptyList())
     }
 
     private fun randomLevelForSpecies(speciesId: Int): Int {
@@ -645,14 +639,13 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     /**
      * Captures a game state snapshot for debug logging.
      */
-    private fun currentDebugSnapshot(queueSizeOverride: Int? = null): DebugSnapshot {
-        val queueSize = queueSizeOverride ?: synchronized(spawnQueue) { spawnQueue.size }
+    private fun currentDebugSnapshot(): DebugSnapshot {
         return DebugSnapshot(
             phoneBattery = gameplayContext.phone.battery,
             phoneIsInteractive = gameplayContext.phone.isInteractive,
             phoneMinutesOff = gameplayContext.phone.minutesOff,
             phoneMinutesOffOutsideBedtime = gameplayContext.phone.minutesOffOutsideBedtime,
-            queueSize = queueSize,
+            queueSize = synchronized(spawnQueue) { spawnQueue.size },
             hasSleepBonus = gameplayContext.sleep.hasSleepBonus,
             isBedtime = gameplayContext.sleep.isBedtime
         )

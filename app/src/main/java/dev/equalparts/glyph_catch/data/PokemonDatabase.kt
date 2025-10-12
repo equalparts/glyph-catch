@@ -28,6 +28,7 @@ data class CaughtPokemon(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val speciesId: Int,
     val caughtAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0") val spawnedAt: Long = 0L,
     val nickname: String? = null,
     val isFavorite: Boolean = false,
     val isTraining: Boolean = false,
@@ -92,8 +93,8 @@ interface PokemonDao {
     @Query("SELECT COUNT(*) FROM caught_pokemon WHERE speciesId = :speciesId")
     suspend fun countBySpeciesId(speciesId: Int): Int
 
-    @Query("SELECT MAX(caughtAt) FROM caught_pokemon WHERE spawnPoolName = :poolName")
-    suspend fun getLastCaughtAtForPool(poolName: String): Long?
+    @Query("SELECT MAX(CASE WHEN spawnedAt > 0 THEN spawnedAt ELSE caughtAt END) FROM caught_pokemon WHERE spawnPoolName = :poolName")
+    suspend fun getLastSpawnedAtForPool(poolName: String): Long?
 
     @Insert
     suspend fun insert(pokemon: CaughtPokemon)
@@ -152,12 +153,13 @@ interface ActiveItemDao {
         ActiveItem::class,
         DebugEvent::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 4, to = 5),
         AutoMigration(from = 5, to = 6),
-        AutoMigration(from = 6, to = 7, spec = DebugEventsMigration6To7::class)
+        AutoMigration(from = 6, to = 7, spec = DebugEventsMigration6To7::class),
+        AutoMigration(from = 7, to = 8)
     ]
 )
 abstract class PokemonDatabase : RoomDatabase() {
