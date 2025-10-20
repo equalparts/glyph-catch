@@ -40,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import dev.equalparts.glyph_catch.data.Item
+import dev.equalparts.glyph_catch.gameplay.training.TrainingProgression
 import dev.equalparts.glyph_catch.util.ItemSpriteUtils
 import dev.equalparts.glyph_catch.util.PokemonSpriteUtils
 
@@ -125,19 +126,6 @@ fun AppCard(
             content()
         }
     }
-}
-
-@Composable
-fun AppSectionHeader(modifier: Modifier = Modifier, text: String) {
-    Spacer(modifier = Modifier.height(AppSizes.spacingXLarge))
-    Text(
-        text = text,
-        modifier = modifier,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onBackground,
-        fontWeight = FontWeight.Medium
-    )
-    Spacer(modifier = Modifier.height(AppSizes.spacingMedium))
 }
 
 @Composable
@@ -278,7 +266,8 @@ fun PokemonLevelChip(level: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun AppBadge(text: String, modifier: Modifier = Modifier) {
+fun PokemonExpChip(level: Int, exp: Int, modifier: Modifier = Modifier) {
+    val target = if (level >= TrainingProgression.MAX_LEVEL) null else TrainingProgression.expToNextLevel(level)
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(AppSizes.chipCornerRadius))
@@ -286,10 +275,34 @@ fun AppBadge(text: String, modifier: Modifier = Modifier) {
             .padding(horizontal = AppSizes.spacingSmall, vertical = AppSizes.spacingMicro)
     ) {
         Text(
+            text = if (target != null) {
+                stringResource(R.string.components_exp_chip, exp, target)
+            } else {
+                stringResource(R.string.components_exp_chip_max)
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun AppBadge(
+    text: String,
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.primary,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimary
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(AppSizes.chipCornerRadius))
+            .background(containerColor)
+            .padding(horizontal = AppSizes.spacingSmall, vertical = AppSizes.spacingMicro)
+    ) {
+        Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            fontWeight = FontWeight.Medium
+            color = contentColor
         )
     }
 }

@@ -25,6 +25,7 @@ import dev.equalparts.glyph_catch.gameplay.spawner.SpawnHistoryTracker
 import dev.equalparts.glyph_catch.gameplay.spawner.SpawnResult
 import dev.equalparts.glyph_catch.gameplay.spawner.SpawnRulesEngine
 import dev.equalparts.glyph_catch.gameplay.spawner.createSpawnRules
+import dev.equalparts.glyph_catch.gameplay.training.TrainingProgression
 import dev.equalparts.glyph_catch.util.GlyphMatrixService
 import java.util.Calendar
 import java.util.Locale
@@ -233,6 +234,14 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             isBedtime = gameplayContext.sleep.isBedtime
         )
 
+        if (!spawnContext.phoneIsInteractive) {
+            val minutesOffSnapshot = gameplayContext.phone.minutesOff
+            val isBedtimeSnapshot = gameplayContext.sleep.isBedtime
+            coroutineScope?.launch {
+                applyTrainingExp(minutesOffSnapshot, isBedtimeSnapshot)
+            }
+        }
+
         val decision = cadenceController.maybeSpawn(now, spawnContext)
         val spawned = decision.spawn
         if (spawned != null) {
@@ -272,6 +281,49 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         }
 
         updateGlyphMatrix()
+    }
+
+    /**
+     * Runs during ticks to level and/or evolve Pokémon.
+     */
+    private suspend fun applyTrainingExp(minutesOff: Int, isBedtime: Boolean) {
+        val dao = db.pokemonDao()
+        val active = dao.getActiveTrainingPartner() ?: return
+        val intervalBonus = if (!isBedtime && minutesOff > 0 && minutesOff % TRAINING_EXP_BONUS_INTERVAL_MINUTES == 0) {
+            TRAINING_EXP_BONUS_AMOUNT
+        } else {
+            0
+        }
+        val gainedExp = TRAINING_EXP_PER_MINUTE + intervalBonus
+        val result = TrainingProgression.applyExp(active.level, active.exp, gainedExp) ?: return
+        dao.updateTrainingProgress(active.id, result.exp, result.level)
+        if (result.leveledUp) {
+            maybeTriggerEvolution(active.copy(level = result.level, exp = result.exp))
+        }
+    }
+
+    /**
+     * Called when a Pokémon levels up to trigger an evolution when needed.
+     */
+    private suspend fun maybeTriggerEvolution(pokemon: CaughtPokemon) {
+        val species = Pokemon[pokemon.speciesId] ?: return
+        val target = species.evolvesTo
+            .mapNotNull { Pokemon[it] }
+            .firstOrNull { candidate ->
+                val requirement = candidate.evolutionRequirement as? EvolutionRequirement.Level
+                requirement != null && pokemon.level >= requirement.level
+            } ?: return
+        db.pokemonDao().evolvePokemon(
+            pokemonId = pokemon.id,
+            newSpeciesId = target.id,
+            newLevel = pokemon.level,
+            newExp = pokemon.exp
+        )
+        db.pokemonDao().recordPokedexEntry(target.id)
+        preferencesManager.enqueueEvolutionNotification(
+            previousSpeciesId = species.id,
+            newSpeciesId = target.id
+        )
     }
 
     /**
@@ -473,6 +525,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                 isConditionalSpawn = spawn.pool.name.contains("event", ignoreCase = true)
             )
             db.pokemonDao().insert(caughtPokemon)
+            db.pokemonDao().recordPokedexEntry(spawn.pokemon.id)
             Log.d(TAG, "Successfully saved ${spawn.pokemon.name} to database")
 
             val queueSnapshot = synchronized(spawnQueue) {
@@ -639,17 +692,15 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     /**
      * Captures a game state snapshot for debug logging.
      */
-    private fun currentDebugSnapshot(): DebugSnapshot {
-        return DebugSnapshot(
-            phoneBattery = gameplayContext.phone.battery,
-            phoneIsInteractive = gameplayContext.phone.isInteractive,
-            phoneMinutesOff = gameplayContext.phone.minutesOff,
-            phoneMinutesOffOutsideBedtime = gameplayContext.phone.minutesOffOutsideBedtime,
-            queueSize = synchronized(spawnQueue) { spawnQueue.size },
-            hasSleepBonus = gameplayContext.sleep.hasSleepBonus,
-            isBedtime = gameplayContext.sleep.isBedtime
-        )
-    }
+    private fun currentDebugSnapshot(): DebugSnapshot = DebugSnapshot(
+        phoneBattery = gameplayContext.phone.battery,
+        phoneIsInteractive = gameplayContext.phone.isInteractive,
+        phoneMinutesOff = gameplayContext.phone.minutesOff,
+        phoneMinutesOffOutsideBedtime = gameplayContext.phone.minutesOffOutsideBedtime,
+        queueSize = synchronized(spawnQueue) { spawnQueue.size },
+        hasSleepBonus = gameplayContext.sleep.hasSleepBonus,
+        isBedtime = gameplayContext.sleep.isBedtime
+    )
 
     /**
      * Invoked when an unhandled exception occurs in a coroutine.
@@ -683,5 +734,9 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         private const val GLYPH_MATRIX_CENTER = GLYPH_MATRIX_SIZE / 2 // Center index (12, which is the 13th pixel)
         private const val WAKE_LOCK_TIMEOUT_MS = 6000L
         private const val WAKE_LOCK_TAG = "GlyphCatch:Animation"
+
+        private const val TRAINING_EXP_PER_MINUTE = 2
+        private const val TRAINING_EXP_BONUS_INTERVAL_MINUTES = 20
+        private const val TRAINING_EXP_BONUS_AMOUNT = 60
     }
 }

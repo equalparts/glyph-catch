@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Glyph Catch</string>
     <string name="toy_name">Glyph Catch</string>
-
     <string name="home_onboarding_title">Welcome, Trainer!</string>
     <string name="home_onboarding_description">To start your adventure, first equip the included Glyph Toy:</string>
     <string name="home_onboarding_step_1">Go to Settings app → Glyph Interface</string>
@@ -16,24 +15,22 @@
     <string name="home_onboarding_step_format">%1$d. %2$s</string>
     <string name="home_onboarding_end_1">Leave your phone face-down and the Glyph Catch clock should appear. If not, press the touch button once.</string>
     <string name="home_onboarding_end_2">Wait a few minutes, and you will meet your first Pokémon. Long-press the touch button to catch it. Good luck!</string>
-
     <string name="common_back">Back</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_save">Save</string>
     <string name="common_unknown">Unknown</string>
-    <string name="common_unknown_pokemon">Unknown Pokémon</string>
-
     <string name="nav_home">Home</string>
     <string name="nav_pokedex">Pokédex</string>
     <string name="nav_caught">Pokémon</string>
     <string name="nav_bag">Bag</string>
     <string name="nav_settings">Settings</string>
-
     <string name="home_header_title">GLYPH CATCH</string>
     <string name="home_progress_percentage">%1$d%%</string>
     <string name="home_progress_label">Discovered</string>
     <string name="home_section_recent_catches">Recent</string>
     <string name="home_empty_recent_catches">No Pokémon caught yet. Pokémon will appear on the Glyph Matrix when your phone is face-down. Long-press the touch button to catch!</string>
+    <string name="home_training_badge">Training</string>
+    <string name="home_recent_new_badge">New</string>
     <string name="home_daily_tip_label">Daily trainer tip</string>
     <string name="home_super_rod_new_banner">Super Rod</string>
     <string name="home_super_rod_new_badge">New</string>
@@ -44,7 +41,9 @@
     <string name="home_weather_rainy">Rain</string>
     <string name="home_weather_storm">Storm</string>
     <string name="home_weather_snowy">Snowy</string>
-
+    <string name="home_evolution_congrats_title">Congratulations!</string>
+    <string name="home_evolution_congrats_message">Your %1$s evolved into %2$s!</string>
+    <string name="home_evolution_close">Close</string>
     <string name="settings_title">SETTINGS</string>
     <string name="settings_weather_title">Weather</string>
     <string name="settings_sleep_title">Sleep &amp; habits</string>
@@ -104,14 +103,12 @@
     <string name="settings_weather_error_permission_denied">Location permission denied</string>
     <string name="settings_weather_error_city_not_found">City not found</string>
     <string name="settings_weather_current_location">Current location</string>
-
     <string name="sleep_choose_bedtime">Choose bedtime</string>
     <string name="sleep_section_title">Bedtime</string>
     <string name="sleep_section_description">Pokémon appearances are limited during this window. Get at least 7.5 hours of sleep to increase rare Pokémon.</string>
     <string name="sleep_bedtime_range">%1$s - %2$s</string>
     <string name="sleep_set_bedtime">Set bedtime</string>
     <string name="sleep_change_bedtime">Change bedtime</string>
-
     <string name="caught_screen_title">POKÉMON</string>
     <string name="caught_screen_total_caught">%1$d caught</string>
     <string name="caught_screen_search_placeholder">Search Pokémon…</string>
@@ -122,25 +119,24 @@
     <string name="caught_screen_empty_filtered_subtitle">Try adjusting your filters</string>
     <string name="caught_screen_empty_title">No Pokémon caught yet</string>
     <string name="caught_screen_favorite_content_description">Favorite</string>
-
     <string name="caught_detail_title">POKÉMON DETAILS</string>
     <string name="caught_detail_info_pokedex">Pokédex no.</string>
-    <string name="caught_detail_info_level">Lv.</string>
-    <string name="caught_detail_info_exp">Exp.</string>
+    <string name="caught_detail_info_appeared_on">Appeared</string>
     <string name="caught_detail_info_caught_on">Caught</string>
     <string name="caught_detail_info_screen_off_time">Screen off time ±</string>
     <string name="caught_detail_info_spawn_pool">Rarity</string>
+    <string name="caught_detail_start_training">Train</string>
+    <string name="caught_detail_is_training">Training</string>
+    <string name="caught_detail_stop_training">Stop training</string>
     <string name="caught_detail_info_encounter">Encounter</string>
     <string name="caught_detail_encounter_special">Special</string>
     <string name="caught_detail_encounter_event">Event</string>
-    <string name="caught_detail_train_button">Train Pokémon (Coming Soon)</string>
     <string name="caught_detail_empty_title">Pokémon not found</string>
     <string name="caught_detail_empty_subtitle">Try again from the caught list.</string>
     <plurals name="caught_detail_screen_off_minutes">
         <item quantity="one">1 minute</item>
         <item quantity="other">%d minutes</item>
     </plurals>
-
     <string name="inventory_title">BAG</string>
     <string name="inventory_empty_title">No items found yet</string>
     <string name="inventory_empty_subtitle">Catch more Pokemon to discover useful gear.</string>
@@ -168,10 +164,10 @@
     <string name="item_sun_stone_description">Harnesses sunlight for evolutions.</string>
     <string name="item_super_rod_name">Super Rod</string>
     <string name="item_super_rod_description">A fishing rod for catching certain aquatic Pokémon. Effect lasts for 60 minutes.</string>
-
     <string name="pokedex_title">POKÉDEX</string>
     <string name="pokedex_progress_subtitle">%1$d/151</string>
     <string name="pokedex_entry_number">#%1$03d</string>
-
     <string name="components_level_chip">Lv. %1$d</string>
+    <string name="components_exp_chip">%1$d/%2$d EXP</string>
+    <string name="components_exp_chip_max">MAX</string>
 </resources>

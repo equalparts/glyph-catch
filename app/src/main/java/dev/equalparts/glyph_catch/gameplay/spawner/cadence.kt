@@ -134,13 +134,11 @@ class SpawnCadenceController(private val spawnEngine: SpawnRulesEngine, private 
         )
     }
 
-    private fun decideRerollOptions(
-        nowMillis: Long,
-        context: SpawnContext,
-    ): RerollOptions? {
-        if (rerollPools.isEmpty()
-            || context.isBedtime
-            || context.phoneMinutesOff < MIN_SCREEN_OFF_MINUTES_FOR_REROLL) {
+    private fun decideRerollOptions(nowMillis: Long, context: SpawnContext): RerollOptions? {
+        if (rerollPools.isEmpty() ||
+            context.isBedtime ||
+            context.phoneMinutesOff < MIN_SCREEN_OFF_MINUTES_FOR_REROLL
+        ) {
             return null
         }
 

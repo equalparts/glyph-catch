@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,15 +19,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
@@ -36,11 +43,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.equalparts.glyph_catch.AppBadge
 import dev.equalparts.glyph_catch.AppCard
-import dev.equalparts.glyph_catch.AppSectionHeader
 import dev.equalparts.glyph_catch.AppSizes
+import dev.equalparts.glyph_catch.PokemonExpChip
+import dev.equalparts.glyph_catch.PokemonLevelChip
 import dev.equalparts.glyph_catch.PokemonSpriteCircle
 import dev.equalparts.glyph_catch.R
 import dev.equalparts.glyph_catch.data.CaughtPokemon
+import dev.equalparts.glyph_catch.data.EvolutionNotification
 import dev.equalparts.glyph_catch.data.InventoryItem
 import dev.equalparts.glyph_catch.data.Item
 import dev.equalparts.glyph_catch.data.Pokemon
@@ -48,6 +57,7 @@ import dev.equalparts.glyph_catch.data.PokemonDatabase
 import dev.equalparts.glyph_catch.data.PreferencesManager
 import dev.equalparts.glyph_catch.gameplay.spawner.Weather
 import dev.equalparts.glyph_catch.gameplay.spawner.WeatherProvider
+import dev.equalparts.glyph_catch.gameplay.training.TrainingProgression
 import dev.equalparts.glyph_catch.ndotFontFamily
 import dev.equalparts.glyph_catch.util.ActiveItemStatus
 import dev.equalparts.glyph_catch.util.TrainerTipsProvider
@@ -57,6 +67,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -76,12 +87,19 @@ fun HomeScreen(
     val glyphToyStatusFlow = remember(preferencesManager) { preferencesManager.watchGlyphToyHasTicked() }
     val glyphToyHasTicked by glyphToyStatusFlow.collectAsStateWithLifecycle(false)
     val totalCaught by db.pokemonDao().watchTotalCaughtCount().collectAsStateWithLifecycle(0)
+    val trainingPartner by db.pokemonDao().watchTrainingPartner().collectAsStateWithLifecycle(null)
     val superRodIndicatorFlow = remember(preferencesManager) { preferencesManager.watchSuperRodIndicator() }
     val showSuperRodIndicator by superRodIndicatorFlow.collectAsStateWithLifecycle(
         initialValue = preferencesManager.shouldShowSuperRodIndicator()
     )
     val superRodStatus by rememberActiveItemStatus(db, Item.SUPER_ROD)
     val isSleepBonusActive by rememberSleepBonusStatus(preferencesManager)
+
+    val evolutionNotificationsFlow =
+        remember(preferencesManager) { preferencesManager.watchPendingEvolutionNotifications() }
+    val pendingEvolutionNotifications by evolutionNotificationsFlow.collectAsStateWithLifecycle(emptyList())
+    val scope = rememberCoroutineScope()
+    val currentEvolution = pendingEvolutionNotifications.firstOrNull()
 
     val progressPercentage = remember(uniqueSpecies) { ((uniqueSpecies * 100) / 151).coerceAtMost(100) }
     val dailyTip = remember(tipsProvider) { tipsProvider.getDailyTip() }
@@ -102,38 +120,58 @@ fun HomeScreen(
 
     val scrollState = rememberScrollState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = AppSizes.spacingLarge)
-            .verticalScroll(scrollState)
-    ) {
-        Header(onSettingsClick = onSettingsClick)
-        Spacer(modifier = Modifier.height(AppSizes.spacingXLarge))
-        StatusBanners(
-            showSuperRodIndicator = showSuperRodIndicator,
-            superRodStatus = superRodStatus,
-            isSleepBonusActive = isSleepBonusActive,
-            onSuperRodIndicatorClick = {
-                preferencesManager.markSuperRodIndicatorSeen()
-                onBagClick()
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = AppSizes.spacingLarge)
+                .verticalScroll(scrollState)
+        ) {
+            Header(onSettingsClick = onSettingsClick)
+            Spacer(modifier = Modifier.height(AppSizes.spacingXLarge))
+            if (!glyphToyHasTicked) {
+                OnboardingCard()
+            } else {
+                StatusBanners(
+                    showSuperRodIndicator = showSuperRodIndicator,
+                    superRodStatus = superRodStatus,
+                    isSleepBonusActive = isSleepBonusActive,
+                    onSuperRodIndicatorClick = {
+                        preferencesManager.markSuperRodIndicatorSeen()
+                        onBagClick()
+                    }
+                )
+                Tiles(
+                    progressPercentage = progressPercentage,
+                    weather = weather,
+                    onPokedexClick = onPokedexClick,
+                    onWeatherClick = onWeatherSettingsClick
+                )
+                Spacer(modifier = Modifier.height(AppSizes.spacingMedium))
+                trainingPartner?.let {
+                    TrainingBanner(
+                        partner = it,
+                        onPartnerClick = onPokemonClick
+                    )
+                }
+                Spacer(modifier = Modifier.height(AppSizes.spacingMedium))
+                TrainerTipCard(dailyTip = dailyTip)
+                Spacer(modifier = Modifier.height(AppSizes.spacingMedium))
+                RecentCatches(
+                    recentCatches = recentCatches,
+                    onPokemonClick = onPokemonClick
+                )
             }
-        )
-        if (!glyphToyHasTicked) {
-            OnboardingCard()
-        } else {
-            Tiles(
-                progressPercentage = progressPercentage,
-                weather = weather,
-                onPokedexClick = onPokedexClick,
-                onWeatherClick = onWeatherSettingsClick
-            )
-            Spacer(modifier = Modifier.height(AppSizes.spacingMedium))
-            TrainerTipCard(dailyTip = dailyTip)
-            Spacer(modifier = Modifier.height(AppSizes.spacingMedium))
-            RecentCatches(
-                recentCatches = recentCatches,
-                onPokemonClick = onPokemonClick
+        }
+
+        currentEvolution?.let { notification ->
+            EvolutionNotificationOverlay(
+                notification = notification,
+                onDismiss = {
+                    scope.launch {
+                        preferencesManager.consumeEvolutionNotification()
+                    }
+                }
             )
         }
     }
@@ -317,9 +355,61 @@ private fun OnboardingCard() {
 }
 
 @Composable
+private fun TrainingBanner(partner: CaughtPokemon, onPartnerClick: (CaughtPokemon) -> Unit) {
+    val species = Pokemon[partner.speciesId]
+    val progress = TrainingProgression.progressFraction(partner.level, partner.exp).coerceIn(0.01f, 1f)
+
+    AppCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { onPartnerClick(partner) }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(AppSizes.spacingMedium),
+            horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PokemonSpriteCircle(
+                pokemonId = partner.speciesId,
+                pokemonName = species?.name ?: stringResource(R.string.common_unknown)
+            )
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(AppSizes.spacingTiny)
+            ) {
+                Text(
+                    text = partner.nickname ?: species?.name ?: stringResource(R.string.common_unknown),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingTiny)
+                ) {
+                    AppBadge(text = stringResource(R.string.home_training_badge))
+                    PokemonLevelChip(level = partner.level)
+                    PokemonExpChip(level = partner.level, exp = partner.exp)
+                }
+                Spacer(modifier = Modifier.height(AppSizes.spacingMicro))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    drawStopIndicator = { }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun RecentCatches(recentCatches: List<CaughtPokemon>, onPokemonClick: (CaughtPokemon) -> Unit) {
-    AppSectionHeader(text = stringResource(R.string.home_section_recent_catches))
-    if (recentCatches.isEmpty()) {
+    val referenceTimeMillis = System.currentTimeMillis()
+    val newCatches = recentCatches.filter { it.isRecent(referenceTimeMillis) }
+
+    if (newCatches.isEmpty()) {
         AppCard(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = stringResource(R.string.home_empty_recent_catches),
@@ -332,9 +422,10 @@ private fun RecentCatches(recentCatches: List<CaughtPokemon>, onPokemonClick: (C
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium)
         ) {
-            items(recentCatches) { pokemon ->
+            items(newCatches) { pokemon ->
                 RecentCatchCard(
                     pokemon = pokemon,
+                    referenceTimeMillis = referenceTimeMillis,
                     onClick = { onPokemonClick(pokemon) }
                 )
             }
@@ -366,6 +457,78 @@ private fun TrainerTipCard(dailyTip: String) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EvolutionNotificationOverlay(notification: EvolutionNotification, onDismiss: () -> Unit) {
+    val previousSpecies = Pokemon[notification.previousSpeciesId]
+    val newSpecies = Pokemon[notification.newSpeciesId]
+    val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { distance -> distance * 0.25f },
+        confirmValueChange = { value ->
+            if (value != SwipeToDismissBoxValue.Settled) {
+                onDismiss()
+                true
+            } else {
+                false
+            }
+        }
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = AppSizes.spacingLarge)
+            .padding(top = AppSizes.spacingXLarge),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        SwipeToDismissBox(
+            state = dismissState,
+            enableDismissFromStartToEnd = true,
+            enableDismissFromEndToStart = true,
+            backgroundContent = {}
+        ) {
+            AppCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(AppSizes.spacingLarge),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium)
+                ) {
+                    PokemonSpriteCircle(
+                        modifier = Modifier.size(AppSizes.homeTileHeight),
+                        pokemonId = notification.newSpeciesId,
+                        pokemonName = newSpecies?.name ?: stringResource(R.string.common_unknown)
+                    )
+
+                    Text(
+                        text = stringResource(R.string.home_evolution_congrats_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.home_evolution_congrats_message,
+                            previousSpecies?.name ?: stringResource(R.string.common_unknown),
+                            newSpecies?.name ?: stringResource(R.string.common_unknown)
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = stringResource(R.string.home_evolution_close))
+                    }
+                }
             }
         }
     }
@@ -441,49 +604,67 @@ private fun HomeStatusBanner(
                 fontWeight = FontWeight.Medium
             )
             if (badge != null) {
-                AppBadge(text = badge)
+                AppBadge(
+                    text = badge,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             }
         }
     }
 }
 
 @Composable
-private fun RecentCatchCard(pokemon: CaughtPokemon, onClick: () -> Unit) {
+private fun RecentCatchCard(pokemon: CaughtPokemon, referenceTimeMillis: Long, onClick: () -> Unit) {
     val species = Pokemon[pokemon.speciesId]
     val dateFormat = remember { SimpleDateFormat("MMM dd", Locale.getDefault()) }
+    val showNewBadge = remember(pokemon.caughtAt, referenceTimeMillis) {
+        pokemon.isRecent(referenceTimeMillis)
+    }
 
     AppCard(
         modifier = Modifier
             .size(AppSizes.homeRecentCardHeight)
             .clickable { onClick() }
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(AppSizes.spacingSmall),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(AppSizes.spacingSmall)
         ) {
-            PokemonSpriteCircle(
-                modifier = Modifier,
-                pokemonId = pokemon.speciesId,
-                pokemonName = species?.name ?: stringResource(R.string.common_unknown)
-            )
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                PokemonSpriteCircle(
+                    modifier = Modifier,
+                    pokemonId = pokemon.speciesId,
+                    pokemonName = species?.name ?: stringResource(R.string.common_unknown)
+                )
 
-            Spacer(modifier = Modifier.height(AppSizes.spacingTiny))
+                Spacer(modifier = Modifier.height(AppSizes.spacingTiny))
 
-            Text(
-                text = species?.name ?: "???",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+                Text(
+                    text = species?.name ?: "???",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
 
-            Text(
-                text = dateFormat.format(Date(pokemon.caughtAt)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                Text(
+                    text = dateFormat.format(Date(pokemon.caughtAt)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (showNewBadge) {
+                AppBadge(
+                    text = stringResource(R.string.home_recent_new_badge),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                )
+            }
         }
     }
 }
@@ -541,4 +722,8 @@ private suspend fun ensureSuperRodUnlocked(db: PokemonDatabase, preferencesManag
     }
 }
 
+private const val RECENT_CATCH_WINDOW_MILLIS = 24 * 60 * 60 * 1000L
 private const val SUPER_ROD_UNLOCK_COUNT = 15
+
+private fun CaughtPokemon.isRecent(referenceTimeMillis: Long): Boolean =
+    caughtAt >= referenceTimeMillis - RECENT_CATCH_WINDOW_MILLIS

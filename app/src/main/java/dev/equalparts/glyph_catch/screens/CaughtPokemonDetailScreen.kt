@@ -6,36 +6,47 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.equalparts.glyph_catch.AppCard
 import dev.equalparts.glyph_catch.AppEmptyState
 import dev.equalparts.glyph_catch.AppScaffoldWithTopBar
 import dev.equalparts.glyph_catch.AppSizes
+import dev.equalparts.glyph_catch.PokemonExpChip
 import dev.equalparts.glyph_catch.PokemonLevelChip
 import dev.equalparts.glyph_catch.PokemonSpriteCircle
 import dev.equalparts.glyph_catch.PokemonTypeChips
 import dev.equalparts.glyph_catch.R
 import dev.equalparts.glyph_catch.data.CaughtPokemon
 import dev.equalparts.glyph_catch.data.Pokemon
+import dev.equalparts.glyph_catch.data.PokemonDao
 import dev.equalparts.glyph_catch.data.PokemonDatabase
+import dev.equalparts.glyph_catch.data.PreferencesManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private data class CaughtPokemonDetailInfo(
     val speciesId: Int?,
     val level: Int,
     val experience: Int,
+    val appearedLabel: String?,
     val caughtLabel: String,
     val screenOffLabel: String,
     val spawnPoolName: String?,
@@ -44,7 +55,12 @@ private data class CaughtPokemonDetailInfo(
 )
 
 @Composable
-fun CaughtPokemonDetailScreen(db: PokemonDatabase, pokemonId: String, onNavigateUp: () -> Unit) {
+fun CaughtPokemonDetailScreen(
+    db: PokemonDatabase,
+    preferencesManager: PreferencesManager,
+    pokemonId: String,
+    onNavigateUp: () -> Unit
+) {
     val pokemonDao = remember(db) { db.pokemonDao() }
     val caughtPokemon by pokemonDao.watchCaughtPokemon(pokemonId).collectAsStateWithLifecycle(null)
 
@@ -57,7 +73,9 @@ fun CaughtPokemonDetailScreen(db: PokemonDatabase, pokemonId: String, onNavigate
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(AppSizes.spacingLarge),
-            pokemon = caughtPokemon
+            pokemon = caughtPokemon,
+            pokemonDao = pokemonDao,
+            preferencesManager = preferencesManager
         )
     }
 }
@@ -83,7 +101,15 @@ private fun InfoRow(label: String, value: String) {
 }
 
 @Composable
-private fun CaughtPokemonDetailContent(modifier: Modifier, pokemon: CaughtPokemon?) {
+private fun CaughtPokemonDetailContent(
+    modifier: Modifier,
+    pokemon: CaughtPokemon?,
+    pokemonDao: PokemonDao,
+    preferencesManager: PreferencesManager
+) {
+    val scope = rememberCoroutineScope()
+    var isStartingTraining by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(AppSizes.spacingLarge)
@@ -97,11 +123,40 @@ private fun CaughtPokemonDetailContent(modifier: Modifier, pokemon: CaughtPokemo
             CaughtPokemonSummaryCard(pokemon = pokemon)
 
             Button(
-                onClick = {},
-                enabled = false,
+                onClick = {
+                    scope.launch {
+                        isStartingTraining = true
+                        try {
+                            pokemonDao.setActiveTrainingPartner(pokemon.id)
+                            preferencesManager.markTrainingPartner(pokemon.id)
+                        } finally {
+                            isStartingTraining = false
+                        }
+                    }
+                },
+                enabled = !pokemon.isTraining && !isStartingTraining,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = stringResource(R.string.caught_detail_train_button))
+                Text(
+                    text = if (pokemon.isTraining) {
+                        stringResource(R.string.caught_detail_is_training)
+                    } else {
+                        stringResource(R.string.caught_detail_start_training)
+                    }
+                )
+            }
+            if (pokemon.isTraining) {
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            pokemonDao.clearTrainingPartner()
+                            preferencesManager.clearTrainingPartner()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(text = stringResource(R.string.caught_detail_stop_training))
+                }
             }
         }
     }
@@ -119,6 +174,9 @@ private fun CaughtPokemonSummaryCard(pokemon: CaughtPokemon) {
         }
     }
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
+    val appearedAtFormatted = remember(pokemon.spawnedAt) {
+        pokemon.spawnedAt.takeIf { it > 0L }?.let { Date(it) }?.let(dateFormat::format)
+    }
     val caughtAtFormatted = remember(pokemon.caughtAt) { dateFormat.format(Date(pokemon.caughtAt)) }
     val screenOffText = pluralStringResource(
         R.plurals.caught_detail_screen_off_minutes,
@@ -128,15 +186,23 @@ private fun CaughtPokemonSummaryCard(pokemon: CaughtPokemon) {
 
     AppCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AppSizes.spacingLarge),
-            verticalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(AppSizes.spacingLarge),
+            verticalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            CaughtPokemonOverviewRow(pokemon = pokemon, speciesName = species?.name, typeLabels = typeLabels)
+            CaughtPokemonOverview(
+                pokemon = pokemon,
+                speciesName = species?.name,
+                typeLabels = typeLabels
+            )
 
             val info = CaughtPokemonDetailInfo(
                 speciesId = species?.id,
                 level = pokemon.level,
                 experience = pokemon.exp,
+                appearedLabel = appearedAtFormatted,
                 caughtLabel = caughtAtFormatted,
                 screenOffLabel = screenOffText,
                 spawnPoolName = pokemon.spawnPoolName,
@@ -150,32 +216,38 @@ private fun CaughtPokemonSummaryCard(pokemon: CaughtPokemon) {
 }
 
 @Composable
-private fun CaughtPokemonOverviewRow(pokemon: CaughtPokemon, speciesName: String?, typeLabels: List<String>) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingLarge)
+private fun CaughtPokemonOverview(pokemon: CaughtPokemon, speciesName: String?, typeLabels: List<String>) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium)
     ) {
         PokemonSpriteCircle(
+            modifier = Modifier.size(AppSizes.homeTileHeight),
             pokemonId = pokemon.speciesId,
             pokemonName = speciesName ?: stringResource(R.string.common_unknown)
         )
 
-        Column(
-            verticalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)
+        Text(
+            text = pokemon.nickname
+                ?: speciesName
+                ?: stringResource(R.string.common_unknown),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center
+        )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingTiny)
         ) {
-            Text(
-                text = pokemon.nickname
-                    ?: speciesName
-                    ?: stringResource(R.string.common_unknown_pokemon),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
             PokemonLevelChip(level = pokemon.level)
+            PokemonExpChip(level = pokemon.level, exp = pokemon.exp)
+        }
 
-            if (typeLabels.isNotEmpty()) {
-                PokemonTypeChips(types = typeLabels)
-            }
+        if (typeLabels.isNotEmpty()) {
+            PokemonTypeChips(
+                types = typeLabels,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
         }
     }
 }
@@ -189,12 +261,8 @@ private fun CaughtPokemonInfoList(info: CaughtPokemonDetailInfo) {
                 ?: stringResource(R.string.common_unknown)
         )
         InfoRow(
-            label = stringResource(R.string.caught_detail_info_level),
-            value = info.level.toString()
-        )
-        InfoRow(
-            label = stringResource(R.string.caught_detail_info_exp),
-            value = info.experience.toString()
+            label = stringResource(R.string.caught_detail_info_appeared_on),
+            value = info.appearedLabel ?: stringResource(R.string.common_unknown)
         )
         InfoRow(
             label = stringResource(R.string.caught_detail_info_caught_on),

@@ -8,13 +8,15 @@ import dev.equalparts.glyph_catch.data.Pokemon
 
 fun NavController.navigateToPokemon(speciesId: Int) {
     val species = Pokemon[speciesId]
-    val searchRoute = AppScreen.Caught.createRoute(species?.name ?: "")
-    navigate(searchRoute) {
+    val searchQuery = species?.name.orEmpty()
+    val targetRoute = AppScreen.Caught.createRoute(searchQuery)
+    val shouldRestoreState = searchQuery.isBlank()
+    navigate(targetRoute) {
         popUpTo(graph.findStartDestination().id) {
-            saveState = true
+            saveState = shouldRestoreState
         }
         launchSingleTop = true
-        restoreState = true
+        restoreState = shouldRestoreState
     }
 }
 

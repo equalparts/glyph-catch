@@ -274,9 +274,11 @@ data class GameplayContext(
      * Information about the player.
      */
     inner class TrainerState {
+        private val preferences = PreferencesManager(applicationContext)
+        private val dayMillis = 24L * 60 * 60 * 1000
+
         var pokedexCount: Int = 0
         var currentPartnerDays: Int = 0
-        var daysSinceLastFighterCaught: Int = 999 // Start high so first catch works
 
         /**
          * Yields `true` if the given Pokémon species is not in the current spawn queue
@@ -284,7 +286,7 @@ data class GameplayContext(
          */
         fun hasNotFound(species: PokemonSpecies): Boolean = runBlocking {
             val db = PokemonDatabase.getInstance(applicationContext)
-            if (db.pokemonDao().countBySpeciesId(species.id) > 0) {
+            if (db.pokemonDao().hasPokedexEntry(species.id)) {
                 return@runBlocking false
             }
             return@runBlocking spawnQueue.none { it.pokemon.id == species.id }
@@ -295,6 +297,18 @@ data class GameplayContext(
          * and have not been caught before.
          */
         fun hasNotFoundAny(species: List<PokemonSpecies>): Boolean = species.all { hasNotFound(it) }
+
+        /**
+         * Returns the days elapsed since any given Pokémon species was caught, or `null`
+         * if none of the specified species have been caught.
+         */
+        fun daysSinceLastCaught(vararg speciesIds: Int): Int? = runBlocking {
+            if (speciesIds.isEmpty()) return@runBlocking null
+            val db = PokemonDatabase.getInstance(applicationContext)
+            val lastCaught = db.pokemonDao().getLastCaughtAtForSpecies(speciesIds.toList()) ?: return@runBlocking null
+            val now = System.currentTimeMillis()
+            ((now - lastCaught) / dayMillis).coerceAtLeast(0).toInt()
+        }
 
         /**
          * Yields `true` if the player possesses one or more of the given item.
@@ -318,9 +332,25 @@ data class GameplayContext(
          * Call this periodically to refresh the data.
          */
         fun refresh() {
-            pokedexCount = runBlocking {
-                val db = PokemonDatabase.getInstance(applicationContext)
-                db.pokemonDao().getUniqueSpeciesCount()
+            val database = PokemonDatabase.getInstance(applicationContext)
+            val dao = database.pokemonDao()
+            val now = System.currentTimeMillis()
+
+            runBlocking {
+                pokedexCount = dao.getUniqueSpeciesCount()
+
+                val activePartner = dao.getActiveTrainingPartner()
+                if (activePartner == null) {
+                    currentPartnerDays = 0
+                    preferences.clearTrainingPartner()
+                } else {
+                    if (preferences.activeTrainingPartnerId != activePartner.id) {
+                        preferences.markTrainingPartner(activePartner.id, now)
+                    } else {
+                        val startedAt = preferences.trainingPartnerBeganAt
+                        currentPartnerDays = ((now - startedAt) / dayMillis).coerceAtLeast(0).toInt()
+                    }
+                }
             }
         }
     }
