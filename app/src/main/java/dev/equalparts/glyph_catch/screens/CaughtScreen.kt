@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,9 +44,9 @@ import dev.equalparts.glyph_catch.AppCard
 import dev.equalparts.glyph_catch.AppEmptyState
 import dev.equalparts.glyph_catch.AppScreenHeader
 import dev.equalparts.glyph_catch.AppSizes
+import dev.equalparts.glyph_catch.PokemonExpChip
 import dev.equalparts.glyph_catch.PokemonLevelChip
 import dev.equalparts.glyph_catch.PokemonSpriteCircle
-import dev.equalparts.glyph_catch.PokemonTypeChips
 import dev.equalparts.glyph_catch.R
 import dev.equalparts.glyph_catch.data.CaughtPokemon
 import dev.equalparts.glyph_catch.data.Pokemon
@@ -80,7 +81,7 @@ fun CaughtScreen(db: PokemonDatabase, initialSearchQuery: String = "", onPokemon
     val totalCaught by pokemonDao.watchTotalCaughtCount().collectAsStateWithLifecycle(0)
     val scope = rememberCoroutineScope()
 
-    var searchQuery by remember { mutableStateOf(initialSearchQuery) }
+    var searchQuery by rememberSaveable(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
     var showFavoritesOnly by remember { mutableStateOf(false) }
     var showEventOnly by remember { mutableStateOf(false) }
 
@@ -350,8 +351,7 @@ fun CaughtPokemonCard(
                     horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)
                 ) {
                     PokemonLevelChip(level = pokemon.level)
-
-                    PokemonTypeChips(types = typeLabels)
+                    PokemonExpChip(level = pokemon.level, exp = pokemon.exp)
                 }
 
                 Spacer(modifier = Modifier.height(AppSizes.spacingTiny))

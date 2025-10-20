@@ -105,6 +105,7 @@ fun AppNavigationGraph(navController: NavHostController, db: PokemonDatabase) {
                 val pokemonId = backStackEntry.arguments?.getString("pokemonId") ?: return@composable
                 CaughtPokemonDetailScreen(
                     db = db,
+                    preferencesManager = preferencesManager,
                     pokemonId = pokemonId,
                     onNavigateUp = { navController.navigateUp() }
                 )

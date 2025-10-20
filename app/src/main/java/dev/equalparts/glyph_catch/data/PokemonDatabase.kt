@@ -14,7 +14,10 @@ import androidx.room.Query
 import androidx.room.RenameColumn
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import androidx.room.migration.AutoMigrationSpec
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import dev.equalparts.glyph_catch.debug.DebugEvent
 import dev.equalparts.glyph_catch.debug.DebugEventDao
 import java.util.UUID
@@ -44,12 +47,7 @@ data class CaughtPokemon(
  * Pokédex record. One per species ID.
  */
 @Entity(tableName = "pokedex_records")
-data class PokedexRecord(
-    @PrimaryKey val speciesId: Int,
-    val caught: Boolean = false,
-    val timesCaught: Int = 0,
-    val firstCaughtAt: Long? = null
-)
+data class PokedexRecord(@PrimaryKey val speciesId: Int)
 
 /**
  * Item collected by the user.
@@ -69,6 +67,29 @@ data class ActiveItem(
 
 @Dao
 interface PokemonDao {
+    @Query("SELECT * FROM caught_pokemon WHERE isTraining = 1 LIMIT 1")
+    fun watchTrainingPartner(): Flow<CaughtPokemon?>
+
+    @Query("SELECT * FROM caught_pokemon WHERE isTraining = 1 LIMIT 1")
+    suspend fun getActiveTrainingPartner(): CaughtPokemon?
+
+    @Query("UPDATE caught_pokemon SET isTraining = 0")
+    suspend fun clearTrainingPartner()
+
+    @Query("UPDATE caught_pokemon SET isTraining = CASE WHEN id = :pokemonId THEN 1 ELSE 0 END")
+    suspend fun setActiveTrainingPartner(pokemonId: String)
+
+    @Query("UPDATE caught_pokemon SET currentExp = :exp, level = :level WHERE id = :pokemonId")
+    suspend fun updateTrainingProgress(pokemonId: String, exp: Int, level: Int)
+
+    @Query(
+        "UPDATE caught_pokemon SET speciesId = :newSpeciesId, level = :newLevel, currentExp = :newExp WHERE id = :pokemonId"
+    )
+    suspend fun evolvePokemon(pokemonId: String, newSpeciesId: Int, newLevel: Int, newExp: Int)
+
+    @Query("SELECT MAX(caughtAt) FROM caught_pokemon WHERE speciesId IN (:speciesIds)")
+    suspend fun getLastCaughtAtForSpecies(speciesIds: List<Int>): Long?
+
     @Query("SELECT * FROM caught_pokemon ORDER BY speciesId")
     fun watchAllCaught(): Flow<List<CaughtPokemon>>
 
@@ -84,16 +105,34 @@ interface PokemonDao {
     @Query("SELECT COUNT(*) FROM caught_pokemon")
     fun watchTotalCaughtCount(): Flow<Int>
 
-    @Query("SELECT COUNT(DISTINCT speciesId) FROM caught_pokemon")
+    @Query("SELECT COUNT(*) FROM pokedex_records")
     fun watchPokedexProgress(): Flow<Int>
 
-    @Query("SELECT COUNT(DISTINCT speciesId) FROM caught_pokemon")
+    @Query("SELECT COUNT(*) FROM pokedex_records")
     suspend fun getUniqueSpeciesCount(): Int
 
-    @Query("SELECT COUNT(*) FROM caught_pokemon WHERE speciesId = :speciesId")
-    suspend fun countBySpeciesId(speciesId: Int): Int
+    @Query("SELECT speciesId FROM pokedex_records ORDER BY speciesId")
+    fun watchCaughtSpeciesIds(): Flow<List<Int>>
 
-    @Query("SELECT MAX(CASE WHEN spawnedAt > 0 THEN spawnedAt ELSE caughtAt END) FROM caught_pokemon WHERE spawnPoolName = :poolName")
+    @Query("SELECT EXISTS(SELECT 1 FROM pokedex_records WHERE speciesId = :speciesId)")
+    suspend fun hasPokedexEntry(speciesId: Int): Boolean
+
+    @Query("SELECT * FROM pokedex_records WHERE speciesId = :speciesId LIMIT 1")
+    suspend fun getPokedexRecord(speciesId: Int): PokedexRecord?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertPokedexRecord(record: PokedexRecord)
+
+    @Transaction
+    suspend fun recordPokedexEntry(speciesId: Int) {
+        if (!hasPokedexEntry(speciesId)) {
+            upsertPokedexRecord(PokedexRecord(speciesId = speciesId))
+        }
+    }
+
+    @Query(
+        "SELECT MAX(CASE WHEN spawnedAt > 0 THEN spawnedAt ELSE caughtAt END) FROM caught_pokemon WHERE spawnPoolName = :poolName"
+    )
     suspend fun getLastSpawnedAtForPool(poolName: String): Long?
 
     @Insert
@@ -153,7 +192,7 @@ interface ActiveItemDao {
         ActiveItem::class,
         DebugEvent::class
     ],
-    version = 8,
+    version = 10,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 4, to = 5),
@@ -169,6 +208,67 @@ abstract class PokemonDatabase : RoomDatabase() {
     abstract fun debugEventDao(): DebugEventDao
 
     companion object {
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO pokedex_records (speciesId, caught, timesCaught, firstCaughtAt)
+                    SELECT speciesId, 1, COUNT(*), MIN(caughtAt)
+                    FROM caught_pokemon
+                    GROUP BY speciesId
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    UPDATE pokedex_records
+                    SET timesCaught = (
+                        SELECT COUNT(*) FROM caught_pokemon WHERE caught_pokemon.speciesId = pokedex_records.speciesId
+                    )
+                    WHERE speciesId IN (SELECT speciesId FROM caught_pokemon)
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    UPDATE pokedex_records
+                    SET caught = 1
+                    WHERE speciesId IN (SELECT speciesId FROM caught_pokemon)
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    UPDATE pokedex_records
+                    SET firstCaughtAt = (
+                        SELECT MIN(caughtAt)
+                        FROM caught_pokemon
+                        WHERE caught_pokemon.speciesId = pokedex_records.speciesId
+                    )
+                    WHERE firstCaughtAt IS NULL AND speciesId IN (SELECT speciesId FROM caught_pokemon)
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS pokedex_records_new (
+                        speciesId INTEGER NOT NULL,
+                        PRIMARY KEY(speciesId)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO pokedex_records_new (speciesId)
+                    SELECT DISTINCT speciesId FROM pokedex_records
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE pokedex_records")
+                db.execSQL("ALTER TABLE pokedex_records_new RENAME TO pokedex_records")
+            }
+        }
+
         @Volatile
         private var INSTANCE: PokemonDatabase? = null
 
@@ -178,6 +278,7 @@ abstract class PokemonDatabase : RoomDatabase() {
                 PokemonDatabase::class.java,
                 "pokemon.db"
             )
+                .addMigrations(MIGRATION_8_9, MIGRATION_9_10)
                 .fallbackToDestructiveMigration(false)
                 .build().also { INSTANCE = it }
         }

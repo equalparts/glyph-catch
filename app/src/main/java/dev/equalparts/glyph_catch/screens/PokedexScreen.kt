@@ -37,13 +37,13 @@ private data class PokedexScreenState(val progress: Int, val caughtSpeciesIds: S
 
 @Composable
 fun PokedexScreen(db: PokemonDatabase, onPokemonClick: (Int) -> Unit = {}) {
-    val caughtPokemon by db.pokemonDao().watchAllCaught().collectAsStateWithLifecycle(emptyList())
     val progress by db.pokemonDao().watchPokedexProgress().collectAsStateWithLifecycle(0)
-    val caughtSpeciesIds = remember(caughtPokemon) {
-        caughtPokemon.map { it.speciesId }.toSet()
+    val caughtSpeciesIds by db.pokemonDao().watchCaughtSpeciesIds().collectAsStateWithLifecycle(emptyList())
+    val caughtSpeciesSet = remember(caughtSpeciesIds) {
+        caughtSpeciesIds.toSet()
     }
 
-    val state = PokedexScreenState(progress = progress, caughtSpeciesIds = caughtSpeciesIds)
+    val state = PokedexScreenState(progress = progress, caughtSpeciesIds = caughtSpeciesSet)
 
     Column(
         modifier = Modifier

@@ -132,7 +132,7 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
 
         pool(
             "Uncommon",
-            10.percent increaseBy {
+            12.percent increaseBy {
                 scaling.timeBoost(
                     gain = 30.percent,
                     over = 120.minutes
@@ -167,11 +167,11 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
 
         pool(
             "Rare",
-            3.percent increaseBy {
+            1.percent increaseBy {
                 scaling.timeBoost(
-                    gain = 5.percent,
+                    gain = 4.percent,
                     over = 180.minutes
-                ) + scaling.sleepBonus(5.percent)
+                ) + scaling.sleepBonus(3.percent)
             }
         ) {
             Pokemon.BULBASAUR at 1f
@@ -183,7 +183,7 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
             Pokemon.PORYGON at 1.0f
             Pokemon.DRATINI at 0.5f
 
-            Pokemon.LAPRAS at 3.0f during weather::rain
+            Pokemon.LAPRAS at 5.0f during weather::rain
         }
 
         // Fossil events
@@ -286,13 +286,14 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
         // with a training partner).
 
         special(Pokemon.HITMONCHAN) {
-            activate(100.percent) given { trainer.currentPartnerDays >= 7 && trainer.hasNotFound(it) }
+            activate(100.percent) given { trainer.currentPartnerDays >= 5 && trainer.hasNotFound(it) }
         }
 
         special(Pokemon.HITMONLEE) {
             activate(100.percent) given {
-                trainer.currentPartnerDays >= 7 &&
-                    trainer.daysSinceLastFighterCaught >= 7 &&
+                val daysSinceHitmonchan = trainer.daysSinceLastCaught(Pokemon.HITMONCHAN.id)
+                trainer.currentPartnerDays >= 5 &&
+                    (daysSinceHitmonchan != null && daysSinceHitmonchan >= 5) &&
                     trainer.hasNotFound(it)
             }
         }

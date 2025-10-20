@@ -93,7 +93,7 @@ object AppSizes {
 
     val pokemonImageSize = 70.dp
 
-    val homeRecentCardHeight = 130.dp
+    val homeRecentCardHeight = 150.dp
     val homeTileHeight = 150.dp
     val homeWeatherImageSize = 60.dp
 
