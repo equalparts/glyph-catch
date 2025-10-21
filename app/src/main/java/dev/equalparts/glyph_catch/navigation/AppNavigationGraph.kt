@@ -11,6 +11,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import dev.equalparts.glyph_catch.data.Item
 import dev.equalparts.glyph_catch.data.PokemonDatabase
 import dev.equalparts.glyph_catch.data.PreferencesManager
 import dev.equalparts.glyph_catch.gameplay.WeatherProviderFactory
@@ -20,6 +21,7 @@ import dev.equalparts.glyph_catch.screens.HomeScreen
 import dev.equalparts.glyph_catch.screens.InventoryItemDetailScreen
 import dev.equalparts.glyph_catch.screens.InventoryScreen
 import dev.equalparts.glyph_catch.screens.PokedexScreen
+import dev.equalparts.glyph_catch.screens.PokemonSelectionScreen
 import dev.equalparts.glyph_catch.screens.SettingsScreen
 import dev.equalparts.glyph_catch.util.TrainerTipsProvider
 
@@ -133,9 +135,50 @@ fun AppNavigationGraph(navController: NavHostController, db: PokemonDatabase) {
             )
         ) { backStackEntry ->
             val itemId = backStackEntry.arguments?.getInt("itemId") ?: return@composable
+            val selectedPokemonIdFlow = remember(backStackEntry) {
+                backStackEntry.savedStateHandle.getStateFlow<String?>(SELECTED_POKEMON_RESULT_KEY, null)
+            }
+            val selectedPokemonId by selectedPokemonIdFlow.collectAsStateWithLifecycle(null)
             InventoryItemDetailScreen(
                 db = db,
+                preferencesManager = preferencesManager,
                 itemId = itemId,
+                selectedPokemonId = selectedPokemonId,
+                onSelectionConsumed = {
+                    backStackEntry.savedStateHandle.remove<String>(SELECTED_POKEMON_RESULT_KEY)
+                },
+                onSelectPokemonClick = { item ->
+                    navController.navigate("inventory/detail/${item.ordinal}/select")
+                },
+                onItemUsed = {
+                    navController.popBackStack(AppScreen.Home.route, inclusive = false)
+                },
+                onBackClick = { navController.navigateUp() }
+            )
+        }
+
+        composable(
+            route = "inventory/detail/{itemId}/select",
+            arguments = listOf(
+                navArgument("itemId") {
+                    type = NavType.IntType
+                }
+            )
+        ) { backStackEntry ->
+            val itemId = backStackEntry.arguments?.getInt("itemId") ?: return@composable
+            val item = Item.entries.getOrNull(itemId) ?: run {
+                navController.navigateUp()
+                return@composable
+            }
+            PokemonSelectionScreen(
+                db = db,
+                item = item,
+                onPokemonSelected = { pokemon ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(SELECTED_POKEMON_RESULT_KEY, pokemon.id)
+                    navController.popBackStack()
+                },
                 onBackClick = { navController.navigateUp() }
             )
         }
@@ -147,3 +190,5 @@ fun AppNavigationGraph(navController: NavHostController, db: PokemonDatabase) {
         }
     }
 }
+
+private const val SELECTED_POKEMON_RESULT_KEY = "selectedPokemonId"

@@ -86,6 +86,22 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_SUPER_ROD_INDICATOR_DISMISSED, false)
         set(value) = prefs.edit { putBoolean(KEY_SUPER_ROD_INDICATOR_DISMISSED, value) }
 
+    var hasDiscoveredRepel: Boolean
+        get() = prefs.getBoolean(KEY_REPEL_DISCOVERED, false)
+        set(value) = prefs.edit { putBoolean(KEY_REPEL_DISCOVERED, value) }
+
+    var isRepelIndicatorDismissed: Boolean
+        get() = prefs.getBoolean(KEY_REPEL_INDICATOR_DISMISSED, false)
+        set(value) = prefs.edit { putBoolean(KEY_REPEL_INDICATOR_DISMISSED, value) }
+
+    var hasReceivedStarterStoneGift: Boolean
+        get() = prefs.getBoolean(KEY_STARTER_STONE_GIFT, false)
+        set(value) = prefs.edit { putBoolean(KEY_STARTER_STONE_GIFT, value) }
+
+    var isRepelActive: Boolean
+        get() = prefs.getBoolean(KEY_REPEL_ACTIVE, false)
+        set(value) = prefs.edit { putBoolean(KEY_REPEL_ACTIVE, value) }
+
     var activeTrainingPartnerId: String?
         get() = prefs.getString(KEY_ACTIVE_TRAINING_PARTNER_ID, null)
         set(value) {
@@ -119,8 +135,9 @@ class PreferencesManager(context: Context) {
 
     fun enqueueEvolutionNotification(previousSpeciesId: Int, newSpeciesId: Int) {
         synchronized(pendingEvolutionNotificationsLock) {
-            val updated = getPendingEvolutionNotifications().toMutableList().apply {
-                add(EvolutionNotification(previousSpeciesId, newSpeciesId))
+            val current = getPendingEvolutionNotifications()
+            val updated = mutableListOf(EvolutionNotification(previousSpeciesId, newSpeciesId)).apply {
+                addAll(current)
             }
             persistPendingEvolutionNotificationsLocked(updated)
         }
@@ -185,6 +202,18 @@ class PreferencesManager(context: Context) {
         currentValue = { shouldShowSuperRodIndicator() }
     )
 
+    fun watchRepelActive(): Flow<Boolean> = preferenceFlow(
+        shouldEmit = { key -> key == null || key == KEY_REPEL_ACTIVE },
+        currentValue = { isRepelActive }
+    )
+
+    fun shouldShowRepelIndicator(): Boolean = hasDiscoveredRepel && !isRepelIndicatorDismissed
+
+    fun watchRepelIndicator(): Flow<Boolean> = preferenceFlow(
+        shouldEmit = { key -> key == null || key in REPEL_KEYS },
+        currentValue = { shouldShowRepelIndicator() }
+    )
+
     fun markSuperRodDiscovered() {
         if (!hasDiscoveredSuperRod) {
             hasDiscoveredSuperRod = true
@@ -195,6 +224,19 @@ class PreferencesManager(context: Context) {
     fun markSuperRodIndicatorSeen() {
         if (!isSuperRodIndicatorDismissed) {
             isSuperRodIndicatorDismissed = true
+        }
+    }
+
+    fun markRepelDiscovered() {
+        if (!hasDiscoveredRepel) {
+            hasDiscoveredRepel = true
+            isRepelIndicatorDismissed = false
+        }
+    }
+
+    fun markRepelIndicatorSeen() {
+        if (!isRepelIndicatorDismissed) {
+            isRepelIndicatorDismissed = true
         }
     }
 
@@ -306,6 +348,10 @@ class PreferencesManager(context: Context) {
         private const val KEY_GLYPH_TOY_TICKED = "glyph_toy_has_ticked"
         private const val KEY_SUPER_ROD_DISCOVERED = "super_rod_discovered"
         private const val KEY_SUPER_ROD_INDICATOR_DISMISSED = "super_rod_indicator_dismissed"
+        private const val KEY_REPEL_DISCOVERED = "repel_discovered"
+        private const val KEY_REPEL_INDICATOR_DISMISSED = "repel_indicator_dismissed"
+        private const val KEY_REPEL_ACTIVE = "repel_active"
+        private const val KEY_STARTER_STONE_GIFT = "starter_stone_gift"
         private const val KEY_SLEEP_BONUS_EXPIRES_AT = "sleep_bonus_expires_at"
         private const val KEY_DEBUG_CAPTURE_ENABLED = "debug_capture_enabled"
         private const val KEY_LAST_SPAWN_SCREEN_OFF_MINUTES = "last_spawn_screen_off_minutes"
@@ -327,6 +373,11 @@ class PreferencesManager(context: Context) {
         private val SUPER_ROD_KEYS = setOf(
             KEY_SUPER_ROD_DISCOVERED,
             KEY_SUPER_ROD_INDICATOR_DISMISSED
+        )
+
+        private val REPEL_KEYS = setOf(
+            KEY_REPEL_DISCOVERED,
+            KEY_REPEL_INDICATOR_DISMISSED
         )
 
         private val pendingEvolutionNotificationsState = MutableStateFlow<List<EvolutionNotification>>(emptyList())

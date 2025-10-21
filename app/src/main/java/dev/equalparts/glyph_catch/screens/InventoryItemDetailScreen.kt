@@ -1,50 +1,86 @@
 package dev.equalparts.glyph_catch.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.equalparts.glyph_catch.AppCard
 import dev.equalparts.glyph_catch.AppEmptyState
 import dev.equalparts.glyph_catch.AppScaffoldWithTopBar
 import dev.equalparts.glyph_catch.AppSizes
-import dev.equalparts.glyph_catch.ItemGlyphCircle
 import dev.equalparts.glyph_catch.R
-import dev.equalparts.glyph_catch.data.ActiveItem
+import dev.equalparts.glyph_catch.data.CaughtPokemon
 import dev.equalparts.glyph_catch.data.Item
-import dev.equalparts.glyph_catch.data.ItemMetadata
+import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.data.PokemonDatabase
-import dev.equalparts.glyph_catch.data.metadata
-import dev.equalparts.glyph_catch.ndotFontFamily
-import dev.equalparts.glyph_catch.util.rememberActiveItemStatus
+import dev.equalparts.glyph_catch.data.PreferencesManager
+import dev.equalparts.glyph_catch.data.nameRes
+import dev.equalparts.glyph_catch.screens.inventory.InventoryItemContent
+import dev.equalparts.glyph_catch.util.ItemUsageError
+import dev.equalparts.glyph_catch.util.ItemUsageResult
+import dev.equalparts.glyph_catch.util.useItemOnPokemon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun InventoryItemDetailScreen(db: PokemonDatabase, itemId: Int, onBackClick: () -> Unit) {
+fun InventoryItemDetailScreen(
+    db: PokemonDatabase,
+    preferencesManager: PreferencesManager,
+    itemId: Int,
+    selectedPokemonId: String? = null,
+    onSelectionConsumed: () -> Unit = {},
+    onSelectPokemonClick: (Item) -> Unit = {},
+    onItemUsed: () -> Unit = {},
+    onBackClick: () -> Unit
+) {
     val inventoryFlow = remember(db) { db.inventoryDao().watchAllItems() }
     val inventoryItems by inventoryFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     val item = remember(itemId) { Item.entries.getOrNull(itemId) }
     val inventoryEntry = remember(inventoryItems) { inventoryItems.firstOrNull { it.itemId == itemId } }
+
+    val pokemonDao = remember(db) { db.pokemonDao() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pendingPokemon by remember { mutableStateOf<CaughtPokemon?>(null) }
+    var showConfirmation by remember { mutableStateOf(false) }
+    var isProcessingSelection by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedPokemonId, item) {
+        if (selectedPokemonId != null) {
+            if (item == null) {
+                Toast.makeText(context, context.getString(R.string.item_usage_error_unknown), Toast.LENGTH_SHORT).show()
+                onSelectionConsumed()
+            } else {
+                val fetched = withContext(Dispatchers.IO) { pokemonDao.getCaughtPokemon(selectedPokemonId) }
+                if (fetched != null) {
+                    pendingPokemon = fetched
+                    showConfirmation = true
+                } else {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.item_usage_error_invalid_pokemon),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                onSelectionConsumed()
+            }
+        }
+    }
 
     AppScaffoldWithTopBar(
         title = stringResource(R.string.inventory_item_title),
@@ -63,116 +99,98 @@ fun InventoryItemDetailScreen(db: PokemonDatabase, itemId: Int, onBackClick: () 
                     secondaryText = stringResource(R.string.inventory_item_missing_subtitle)
                 )
             } else {
-                InventoryItemDetailContent(db = db, item = item, quantity = inventoryEntry.quantity)
+                InventoryItemContent(
+                    db = db,
+                    item = item,
+                    quantity = inventoryEntry.quantity,
+                    preferencesManager = preferencesManager,
+                    onSelectPokemonClick = onSelectPokemonClick
+                )
             }
         }
     }
-}
 
-@Composable
-private fun InventoryItemDetailContent(db: PokemonDatabase, item: Item, quantity: Int) {
-    val metadata = item.metadata()
-    val name = stringResource(metadata.nameRes)
-    val status by rememberActiveItemStatus(db, item)
-    val coroutineScope = rememberCoroutineScope()
-    var isActivating by remember { mutableStateOf(false) }
+    if (showConfirmation && pendingPokemon != null && item != null) {
+        val selectedPokemon = pendingPokemon!!
+        val itemName = stringResource(item.nameRes())
+        val speciesName = Pokemon[selectedPokemon.speciesId]?.name ?: stringResource(R.string.common_unknown)
+        val displayName = selectedPokemon.nickname ?: speciesName
 
-    AppCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(AppSizes.spacingLarge),
-            verticalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            ItemGlyphCircle(
-                item = item,
-                contentDescription = name,
-                modifier = Modifier.size(120.dp)
-            )
-
-            Text(
-                text = name,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Text(
-                text = stringResource(R.string.inventory_item_quantity, quantity),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontFamily = ndotFontFamily
-            )
-
-            Text(
-                text = stringResource(metadata.descriptionRes),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-
-    if (metadata.durationMinutes != null) {
-        Button(
-            onClick = {
-                if (!status.isActive) {
-                    coroutineScope.launch {
-                        isActivating = true
-                        try {
-                            activateItem(db, item, metadata)
-                        } finally {
-                            isActivating = false
-                        }
-                    }
+        AlertDialog(
+            onDismissRequest = {
+                if (!isProcessingSelection) {
+                    showConfirmation = false
+                    pendingPokemon = null
                 }
             },
-            enabled = !status.isActive && !isActivating,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = if (status.isActive) {
-                    stringResource(R.string.inventory_item_using_button, name)
-                } else {
-                    stringResource(R.string.inventory_item_use_button, name)
-                }
-            )
-        }
-
-        if (status.isActive) {
-            OutlinedButton(
-                onClick = {
-                    coroutineScope.launch {
-                        withContext(Dispatchers.IO) {
-                            db.activeItemDao().deactivateItem(item.ordinal)
+            confirmButton = {
+                TextButton(
+                    enabled = !isProcessingSelection,
+                    onClick = {
+                        if (isProcessingSelection) return@TextButton
+                        scope.launch {
+                            isProcessingSelection = true
+                            try {
+                                val result = useItemOnPokemon(db, preferencesManager, item, selectedPokemon.id)
+                                when (result) {
+                                    is ItemUsageResult.Success -> {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.item_usage_success_generic),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        onItemUsed()
+                                    }
+                                    is ItemUsageResult.Error -> {
+                                        val message = when (result.reason) {
+                                            ItemUsageError.ITEM_NOT_AVAILABLE -> context.getString(
+                                                R.string.item_usage_error_no_item,
+                                                itemName
+                                            )
+                                            ItemUsageError.INVALID_POKEMON -> context.getString(
+                                                R.string.item_usage_error_invalid_pokemon
+                                            )
+                                            else -> context.getString(R.string.item_usage_error_unknown)
+                                        }
+                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            } catch (_: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.item_usage_error_unknown),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } finally {
+                                isProcessingSelection = false
+                                showConfirmation = false
+                                pendingPokemon = null
+                            }
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(text = stringResource(R.string.inventory_item_cancel_button))
+                ) {
+                    Text(stringResource(R.string.item_usage_confirm_button))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isProcessingSelection,
+                    onClick = {
+                        if (!isProcessingSelection) {
+                            showConfirmation = false
+                            pendingPokemon = null
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.item_usage_cancel_button))
+                }
+            },
+            title = {
+                Text(stringResource(R.string.item_usage_confirm_title, itemName))
+            },
+            text = {
+                Text(stringResource(R.string.item_usage_confirm_message, itemName, displayName))
             }
-        }
-    } else {
-        Text(
-            text = stringResource(R.string.inventory_item_use_unavailable),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-private suspend fun activateItem(db: PokemonDatabase, item: Item, metadata: ItemMetadata) {
-    val durationMinutes = metadata.durationMinutes ?: return
-    val now = System.currentTimeMillis()
-    val expiresAt = now + durationMinutes * 60_000L
-    withContext(Dispatchers.IO) {
-        db.activeItemDao().activateItem(
-            ActiveItem(
-                itemId = item.ordinal,
-                activatedAt = now,
-                expiresAt = expiresAt
-            )
         )
     }
 }
