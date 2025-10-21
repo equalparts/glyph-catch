@@ -92,6 +92,10 @@ fun HomeScreen(
     val showSuperRodIndicator by superRodIndicatorFlow.collectAsStateWithLifecycle(
         initialValue = preferencesManager.shouldShowSuperRodIndicator()
     )
+    val repelIndicatorFlow = remember(preferencesManager) { preferencesManager.watchRepelIndicator() }
+    val showRepelIndicator by repelIndicatorFlow.collectAsStateWithLifecycle(
+        initialValue = preferencesManager.shouldShowRepelIndicator()
+    )
     val superRodStatus by rememberActiveItemStatus(db, Item.SUPER_ROD)
     val isSleepBonusActive by rememberSleepBonusStatus(preferencesManager)
 
@@ -110,11 +114,18 @@ fun HomeScreen(
         if (preferencesManager.playerStartDate == 0L) {
             preferencesManager.playerStartDate = System.currentTimeMillis()
         }
+        grantStarterStoneGiftIfEligible(db, preferencesManager)
     }
 
     LaunchedEffect(totalCaught) {
         if (totalCaught >= SUPER_ROD_UNLOCK_COUNT) {
             ensureSuperRodUnlocked(db, preferencesManager)
+        }
+    }
+
+    LaunchedEffect(uniqueSpecies) {
+        if (uniqueSpecies >= REPEL_UNLOCK_SPECIES_COUNT) {
+            ensureRepelUnlocked(db, preferencesManager)
         }
     }
 
@@ -134,10 +145,15 @@ fun HomeScreen(
             } else {
                 StatusBanners(
                     showSuperRodIndicator = showSuperRodIndicator,
+                    showRepelIndicator = showRepelIndicator,
                     superRodStatus = superRodStatus,
                     isSleepBonusActive = isSleepBonusActive,
                     onSuperRodIndicatorClick = {
                         preferencesManager.markSuperRodIndicatorSeen()
+                        onBagClick()
+                    },
+                    onRepelIndicatorClick = {
+                        preferencesManager.markRepelIndicatorSeen()
                         onBagClick()
                     }
                 )
@@ -537,11 +553,13 @@ private fun EvolutionNotificationOverlay(notification: EvolutionNotification, on
 @Composable
 private fun StatusBanners(
     showSuperRodIndicator: Boolean,
+    showRepelIndicator: Boolean,
     superRodStatus: ActiveItemStatus,
     isSleepBonusActive: Boolean,
-    onSuperRodIndicatorClick: () -> Unit
+    onSuperRodIndicatorClick: () -> Unit,
+    onRepelIndicatorClick: () -> Unit
 ) {
-    if (showSuperRodIndicator || superRodStatus.isActive || isSleepBonusActive) {
+    if (showSuperRodIndicator || showRepelIndicator || superRodStatus.isActive || isSleepBonusActive) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)
@@ -553,6 +571,15 @@ private fun StatusBanners(
                     onClick = onSuperRodIndicatorClick,
                     highlight = true,
                     badge = stringResource(R.string.home_super_rod_new_badge)
+                )
+            }
+            if (showRepelIndicator) {
+                HomeStatusBanner(
+                    text = stringResource(R.string.home_repel_new_banner),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onRepelIndicatorClick,
+                    highlight = true,
+                    badge = stringResource(R.string.home_repel_new_badge)
                 )
             }
             if (superRodStatus.isActive) {
@@ -701,29 +728,71 @@ private fun Weather.labelRes(): Int = when (this) {
     Weather.SNOW -> R.string.home_weather_snowy
 }
 
-private suspend fun ensureSuperRodUnlocked(db: PokemonDatabase, preferencesManager: PreferencesManager) {
+private suspend fun grantStarterStoneGiftIfEligible(db: PokemonDatabase, preferencesManager: PreferencesManager) {
+    if (preferencesManager.hasReceivedStarterStoneGift) {
+        return
+    }
+    val startDate = preferencesManager.playerStartDate
+    if (startDate == 0L || startDate > STARTER_STONE_GIFT_CUTOFF_MILLIS) {
+        return
+    }
     withContext(Dispatchers.IO) {
+        val inventoryDao = db.inventoryDao()
+        STARTER_STONE_GIFT_ITEMS.forEach { item ->
+            val existing = inventoryDao.getItem(item.ordinal)
+            if (existing == null) {
+                inventoryDao.insertItem(InventoryItem(itemId = item.ordinal, quantity = 1))
+            } else {
+                inventoryDao.addItems(item.ordinal, 1)
+            }
+        }
+    }
+    preferencesManager.hasReceivedStarterStoneGift = true
+}
+
+private suspend fun ensureSuperRodUnlocked(db: PokemonDatabase, preferencesManager: PreferencesManager) {
+    val created = withContext(Dispatchers.IO) {
         val inventoryDao = db.inventoryDao()
         val existing = inventoryDao.getItem(Item.SUPER_ROD.ordinal)
 
-        when {
-            existing == null -> inventoryDao.insertItem(
-                InventoryItem(itemId = Item.SUPER_ROD.ordinal, quantity = 1)
-            )
-            existing.quantity <= 0 -> inventoryDao.addItems(
-                Item.SUPER_ROD.ordinal,
-                1 - existing.quantity
-            )
+        if (existing != null) {
+            false
+        } else {
+            inventoryDao.insertItem(InventoryItem(itemId = Item.SUPER_ROD.ordinal, quantity = 1))
+            true
         }
-
-        if (!preferencesManager.hasDiscoveredSuperRod) {
-            preferencesManager.markSuperRodDiscovered()
-        }
+    }
+    if (created) {
+        preferencesManager.markSuperRodDiscovered()
     }
 }
 
+private suspend fun ensureRepelUnlocked(db: PokemonDatabase, preferencesManager: PreferencesManager) {
+    val created = withContext(Dispatchers.IO) {
+        val inventoryDao = db.inventoryDao()
+        val existing = inventoryDao.getItem(Item.REPEL.ordinal)
+
+        if (existing != null) {
+            false
+        } else {
+            inventoryDao.insertItem(InventoryItem(itemId = Item.REPEL.ordinal, quantity = 1))
+            true
+        }
+    }
+    if (created) {
+        preferencesManager.markRepelDiscovered()
+    }
+}
+
+private const val STARTER_STONE_GIFT_CUTOFF_MILLIS = 1_763_078_400_000L
+private val STARTER_STONE_GIFT_ITEMS = listOf(
+    Item.FIRE_STONE,
+    Item.WATER_STONE,
+    Item.LEAF_STONE
+)
 private const val RECENT_CATCH_WINDOW_MILLIS = 24 * 60 * 60 * 1000L
 private const val SUPER_ROD_UNLOCK_COUNT = 15
+private const val REPEL_UNLOCK_SPECIES_COUNT = 50
 
 private fun CaughtPokemon.isRecent(referenceTimeMillis: Long): Boolean =
     caughtAt >= referenceTimeMillis - RECENT_CATCH_WINDOW_MILLIS

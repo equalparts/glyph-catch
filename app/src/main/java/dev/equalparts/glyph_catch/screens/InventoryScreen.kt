@@ -33,7 +33,7 @@ import dev.equalparts.glyph_catch.ItemGlyphCircle
 import dev.equalparts.glyph_catch.R
 import dev.equalparts.glyph_catch.data.Item
 import dev.equalparts.glyph_catch.data.PokemonDatabase
-import dev.equalparts.glyph_catch.data.metadata
+import dev.equalparts.glyph_catch.data.nameRes
 import dev.equalparts.glyph_catch.ndotFontFamily
 
 private data class InventoryUiItem(val item: Item, val quantity: Int)
@@ -89,8 +89,7 @@ private fun InventoryGrid(items: List<InventoryUiItem>, onItemClick: (Item) -> U
 
 @Composable
 private fun InventoryItemCard(uiItem: InventoryUiItem, onItemClick: (Item) -> Unit) {
-    val metadata = uiItem.item.metadata()
-    val name = stringResource(metadata.nameRes)
+    val name = stringResource(uiItem.item.nameRes())
     val quantityLabel = stringResource(R.string.inventory_item_quantity, uiItem.quantity)
 
     val cardModifier = Modifier

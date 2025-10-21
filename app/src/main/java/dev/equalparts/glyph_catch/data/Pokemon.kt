@@ -28,14 +28,22 @@ sealed class EvolutionRequirement {
     data class Level(val level: Int) : EvolutionRequirement()
     data class Stone(val item: Item) : EvolutionRequirement()
     object Trade : EvolutionRequirement()
-    data class TradeWith(val item: Item) : EvolutionRequirement()
 }
 
 /**
  * Obtainable item identifiers.
  */
 enum class Item {
-    FIRE_STONE, WATER_STONE, THUNDER_STONE, LEAF_STONE, MOON_STONE, SUN_STONE, SUPER_ROD
+    FIRE_STONE,
+    WATER_STONE,
+    THUNDER_STONE,
+    LEAF_STONE,
+    MOON_STONE,
+    SUN_STONE,
+    SUPER_ROD,
+    RARE_CANDY,
+    LINKING_CORD,
+    REPEL
 }
 
 /**
@@ -50,7 +58,6 @@ object Pokemon {
     infix fun PokemonSpecies.at(level: Int) = EvolutionFrom(this, EvolutionRequirement.Level(level))
     infix fun PokemonSpecies.with(stone: Item) = EvolutionFrom(this, EvolutionRequirement.Stone(stone))
     val PokemonSpecies.byTrade get() = EvolutionFrom(this, EvolutionRequirement.Trade)
-    infix fun PokemonSpecies.tradeWith(item: Item) = EvolutionFrom(this, EvolutionRequirement.TradeWith(item))
 
     private fun add(
         id: Int,

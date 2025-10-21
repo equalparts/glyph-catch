@@ -96,8 +96,14 @@ interface PokemonDao {
     @Query("SELECT * FROM caught_pokemon WHERE id = :pokemonId LIMIT 1")
     fun watchCaughtPokemon(pokemonId: String): Flow<CaughtPokemon?>
 
+    @Query("SELECT * FROM caught_pokemon WHERE id = :pokemonId LIMIT 1")
+    suspend fun getCaughtPokemon(pokemonId: String): CaughtPokemon?
+
     @Query("SELECT * FROM caught_pokemon ORDER BY caughtAt DESC LIMIT :limit")
     fun watchRecentCatches(limit: Int = 5): Flow<List<CaughtPokemon>>
+
+    @Query("SELECT COUNT(*) FROM caught_pokemon")
+    suspend fun getTotalCaughtCount(): Int
 
     @Query("SELECT COUNT(*) FROM caught_pokemon WHERE date(caughtAt/1000, 'unixepoch') = date('now')")
     fun watchCaughtTodayCount(): Flow<Int>

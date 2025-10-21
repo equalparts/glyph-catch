@@ -10,6 +10,8 @@ import com.nothing.ketchum.GlyphMatrixManager
 import com.nothing.ketchum.GlyphMatrixObject
 import dev.equalparts.glyph_catch.data.CaughtPokemon
 import dev.equalparts.glyph_catch.data.EvolutionRequirement
+import dev.equalparts.glyph_catch.data.InventoryItem
+import dev.equalparts.glyph_catch.data.Item
 import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.data.PokemonDatabase
 import dev.equalparts.glyph_catch.data.PreferencesManager
@@ -39,6 +41,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -243,7 +246,14 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         }
 
         val decision = cadenceController.maybeSpawn(now, spawnContext)
-        val spawned = decision.spawn
+        var spawned = decision.spawn
+        if (spawned != null && preferencesManager.isRepelActive) {
+            val alreadyCaught = runBlocking { db.pokemonDao().hasPokedexEntry(spawned.pokemon.id) }
+            if (alreadyCaught) {
+                spawned = null
+            }
+        }
+
         if (spawned != null) {
             addToQueue(spawned)
         }
@@ -514,6 +524,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         Log.d(TAG, "Catching ${spawn.pokemon.name}!")
 
         try {
+            val alreadyDiscovered = db.pokemonDao().hasPokedexEntry(spawn.pokemon.id)
             val caughtPokemon = CaughtPokemon(
                 speciesId = spawn.pokemon.id,
                 spawnedAt = spawn.spawnedAtMillis,
@@ -527,6 +538,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             db.pokemonDao().insert(caughtPokemon)
             db.pokemonDao().recordPokedexEntry(spawn.pokemon.id)
             Log.d(TAG, "Successfully saved ${spawn.pokemon.name} to database")
+
+            maybeAwardItems(spawn.pokemon.id, alreadyDiscovered)
 
             val queueSnapshot = synchronized(spawnQueue) {
                 spawnQueue.remove(spawn)
@@ -552,6 +565,54 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         } catch (e: Exception) {
             Log.e(TAG, "Error saving caught Pokémon", e)
             DebugExceptionTracker.log(applicationContext, e, currentDebugSnapshot(), "catch_pokemon")
+        }
+    }
+
+    private suspend fun maybeAwardItems(speciesId: Int, wasDuplicate: Boolean) {
+        if (Random.nextDouble() < EVOLUTION_STONE_DROP_CHANCE && EVOLUTION_STONES.isNotEmpty()) {
+            val stone = EVOLUTION_STONES.random()
+            grantItem(stone)
+            logItemAward(stone, "stone", speciesId, wasDuplicate)
+        }
+
+        if (wasDuplicate) {
+            grantItem(Item.RARE_CANDY)
+            logItemAward(Item.RARE_CANDY, "duplicate", speciesId, wasDuplicate)
+        }
+
+        val totalCaught = db.pokemonDao().getTotalCaughtCount()
+        val linkingGuaranteed = totalCaught > 0 && totalCaught % LINKING_CORD_MILESTONE == 0
+        val linkingChance = Random.nextDouble() < LINKING_CORD_DROP_CHANCE
+        if (linkingGuaranteed || linkingChance) {
+            grantItem(Item.LINKING_CORD)
+            logItemAward(
+                Item.LINKING_CORD,
+                if (linkingGuaranteed) "milestone" else "chance",
+                speciesId,
+                wasDuplicate
+            )
+        }
+    }
+
+    private suspend fun logItemAward(item: Item, reason: String, speciesId: Int, wasDuplicate: Boolean) {
+        val snapshot = currentDebugSnapshot()
+        debugCapture.log("item_award", snapshot) {
+            buildJsonObject {
+                put("item", JsonPrimitive(item.name.lowercase(Locale.US)))
+                put("reason", JsonPrimitive(reason))
+                put("speciesId", JsonPrimitive(speciesId))
+                put("duplicate", JsonPrimitive(wasDuplicate))
+            }
+        }
+    }
+
+    private suspend fun grantItem(item: Item, amount: Int = 1) {
+        val inventoryDao = db.inventoryDao()
+        val existing = inventoryDao.getItem(item.ordinal)
+        if (existing == null) {
+            inventoryDao.insertItem(InventoryItem(itemId = item.ordinal, quantity = amount))
+        } else {
+            inventoryDao.addItems(item.ordinal, amount)
         }
     }
 
@@ -729,6 +790,9 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         private const val PREFS_NAME = "pokemon_glyph_toy_prefs"
         private const val PREFS_KEY_SPAWN_QUEUE = "spawn_queue"
         private const val SLEEP_BONUS_DURATION_MILLIS = 24L * 60 * 60 * 1000
+        private const val EVOLUTION_STONE_DROP_CHANCE = 0.10
+        private const val LINKING_CORD_DROP_CHANCE = 0.02
+        private const val LINKING_CORD_MILESTONE = 40
 
         private const val GLYPH_MATRIX_SIZE = 25 // 25x25 circular display
         private const val GLYPH_MATRIX_CENTER = GLYPH_MATRIX_SIZE / 2 // Center index (12, which is the 13th pixel)
@@ -738,5 +802,14 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         private const val TRAINING_EXP_PER_MINUTE = 2
         private const val TRAINING_EXP_BONUS_INTERVAL_MINUTES = 20
         private const val TRAINING_EXP_BONUS_AMOUNT = 60
+
+        private val EVOLUTION_STONES = listOf(
+            Item.FIRE_STONE,
+            Item.WATER_STONE,
+            Item.THUNDER_STONE,
+            Item.LEAF_STONE,
+            Item.MOON_STONE,
+            Item.SUN_STONE
+        )
     }
 }

@@ -11,20 +11,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -36,7 +29,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,6 +40,9 @@ import dev.equalparts.glyph_catch.PokemonExpChip
 import dev.equalparts.glyph_catch.PokemonLevelChip
 import dev.equalparts.glyph_catch.PokemonSpriteCircle
 import dev.equalparts.glyph_catch.R
+import dev.equalparts.glyph_catch.components.PokemonFilterControls
+import dev.equalparts.glyph_catch.components.PokemonFilterState
+import dev.equalparts.glyph_catch.components.applyFilters
 import dev.equalparts.glyph_catch.data.CaughtPokemon
 import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.data.PokemonDatabase
@@ -58,10 +53,7 @@ import kotlinx.coroutines.launch
 
 private data class CaughtUiState(
     val totalCaught: Int,
-    val searchQuery: String,
-    val showFavoritesOnly: Boolean,
-    val showEventOnly: Boolean,
-    val hasActiveFilters: Boolean,
+    val filterState: PokemonFilterState,
     val caughtPokemon: List<CaughtPokemon>
 )
 
@@ -89,33 +81,19 @@ fun CaughtScreen(db: PokemonDatabase, initialSearchQuery: String = "", onPokemon
         scope.launch { pokemonDao.updateFavorite(pokemon.id, !pokemon.isFavorite) }
     }
 
-    val hasActiveFilters = searchQuery.isNotBlank() || showFavoritesOnly || showEventOnly
+    val filterState = PokemonFilterState(
+        searchQuery = searchQuery,
+        showFavoritesOnly = showFavoritesOnly,
+        showEventOnly = showEventOnly
+    )
 
-    val filteredPokemon by remember(caughtPokemon, searchQuery, showFavoritesOnly, showEventOnly) {
-        derivedStateOf {
-            caughtPokemon
-                .filter { pokemon ->
-                    val species = Pokemon[pokemon.speciesId]
-                    val matchesSearch = if (searchQuery.isBlank()) {
-                        true
-                    } else {
-                        (pokemon.nickname?.contains(searchQuery, ignoreCase = true) == true) ||
-                            (species?.name?.contains(searchQuery, ignoreCase = true) == true)
-                    }
-                    val matchesFavorite = !showFavoritesOnly || pokemon.isFavorite
-                    val matchesEvent = !showEventOnly || pokemon.isSpecialSpawn || pokemon.isConditionalSpawn
-                    matchesSearch && matchesFavorite && matchesEvent
-                }
-                .sortedByDescending { it.caughtAt }
-        }
+    val filteredPokemon by remember(caughtPokemon, filterState) {
+        derivedStateOf { caughtPokemon.applyFilters(filterState) }
     }
 
     val state = CaughtUiState(
         totalCaught = totalCaught,
-        searchQuery = searchQuery,
-        showFavoritesOnly = showFavoritesOnly,
-        showEventOnly = showEventOnly,
-        hasActiveFilters = hasActiveFilters,
+        filterState = filterState,
         caughtPokemon = filteredPokemon
     )
 
@@ -143,7 +121,13 @@ private fun CaughtScreenContent(state: CaughtUiState, actions: CaughtActions) {
             subtitle = stringResource(R.string.caught_screen_total_caught, state.totalCaught)
         )
 
-        CaughtSearchSection(state = state, actions = actions)
+        PokemonFilterControls(
+            state = state.filterState,
+            onSearchChange = actions.onSearchChange,
+            onClearSearch = actions.onClearSearch,
+            onToggleFavorites = actions.onToggleFavorites,
+            onToggleEvent = actions.onToggleEvent
+        )
 
         Spacer(modifier = Modifier.height(AppSizes.spacingLarge))
 
@@ -152,35 +136,15 @@ private fun CaughtScreenContent(state: CaughtUiState, actions: CaughtActions) {
 }
 
 @Composable
-private fun CaughtSearchSection(state: CaughtUiState, actions: CaughtActions) {
-    Column {
-        CaughtSearchField(
-            query = state.searchQuery,
-            onQueryChange = actions.onSearchChange,
-            onClearQuery = actions.onClearSearch
-        )
-
-        Spacer(modifier = Modifier.height(AppSizes.spacingSmall))
-
-        CaughtFilterRow(
-            showFavoritesOnly = state.showFavoritesOnly,
-            onToggleFavorites = actions.onToggleFavorites,
-            showEventOnly = state.showEventOnly,
-            onToggleEvent = actions.onToggleEvent
-        )
-    }
-}
-
-@Composable
 private fun CaughtResults(state: CaughtUiState, actions: CaughtActions) {
     if (state.caughtPokemon.isEmpty()) {
         AppEmptyState(
-            primaryText = if (state.hasActiveFilters) {
+            primaryText = if (state.filterState.hasActiveFilters) {
                 stringResource(R.string.caught_screen_empty_filtered_title)
             } else {
                 stringResource(R.string.caught_screen_empty_title)
             },
-            secondaryText = if (state.hasActiveFilters) {
+            secondaryText = if (state.filterState.hasActiveFilters) {
                 stringResource(R.string.caught_screen_empty_filtered_subtitle)
             } else {
                 null
@@ -205,96 +169,6 @@ private fun CaughtResults(state: CaughtUiState, actions: CaughtActions) {
 }
 
 @Composable
-private fun CaughtSearchField(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onClearQuery: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        placeholder = { Text(stringResource(R.string.caught_screen_search_placeholder)) },
-        modifier = modifier.fillMaxWidth(),
-        singleLine = true,
-        shape = RoundedCornerShape(AppSizes.cardCornerRadius),
-        trailingIcon = if (query.isNotEmpty()) {
-            {
-                IconButton(onClick = onClearQuery) {
-                    Icon(
-                        imageVector = Icons.Default.Clear,
-                        contentDescription = stringResource(R.string.caught_screen_clear_search),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        } else {
-            null
-        }
-    )
-}
-
-@Composable
-private fun CaughtFilterRow(
-    showFavoritesOnly: Boolean,
-    onToggleFavorites: () -> Unit,
-    showEventOnly: Boolean,
-    onToggleEvent: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val chipColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = MaterialTheme.colorScheme.primary,
-        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-    )
-
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)
-    ) {
-        ToggleFilterChip(
-            label = stringResource(R.string.caught_screen_filter_favorites),
-            icon = Icons.Default.Favorite,
-            selected = showFavoritesOnly,
-            onClick = onToggleFavorites,
-            colors = chipColors
-        )
-
-        ToggleFilterChip(
-            label = stringResource(R.string.caught_screen_filter_event),
-            icon = Icons.Default.Star,
-            selected = showEventOnly,
-            onClick = onToggleEvent,
-            colors = chipColors
-        )
-    }
-}
-
-@Composable
-private fun ToggleFilterChip(
-    label: String,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit,
-    colors: SelectableChipColors,
-    modifier: Modifier = Modifier
-) {
-    FilterChip(
-        modifier = modifier,
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label) },
-        leadingIcon = {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(AppSizes.iconSizeSmall)
-            )
-        },
-        colors = colors
-    )
-}
-
-@Composable
 fun CaughtPokemonCard(
     pokemon: CaughtPokemon,
     onToggleFavorite: (CaughtPokemon) -> Unit,
@@ -303,12 +177,6 @@ fun CaughtPokemonCard(
     val species = Pokemon[pokemon.speciesId]!!
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
     val formattedDate = remember(pokemon.caughtAt) { dateFormat.format(Date(pokemon.caughtAt)) }
-    val typeLabels = remember(species) {
-        buildList {
-            add(species.type1.name)
-            species.type2?.let { add(it.name) }
-        }
-    }
 
     AppCard(
         modifier = Modifier.fillMaxWidth(),
