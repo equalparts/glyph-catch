@@ -3,7 +3,9 @@ package dev.equalparts.glyph_catch.screens.inventory
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
@@ -61,7 +63,7 @@ fun InventoryItemContent(
 
     when {
         durationMinutes != null -> TimedItemActions(db, item, name, durationMinutes)
-        item == Item.REPEL -> RepelToggle(preferencesManager)
+        item == Item.REPEL -> RepelToggleCard(preferencesManager)
         else -> UseOnPokemonButton(name, quantity) { onSelectPokemonClick(item) }
     }
 }
@@ -153,30 +155,37 @@ private fun TimedItemActions(db: PokemonDatabase, item: Item, itemName: String, 
 }
 
 @Composable
-private fun RepelToggle(preferencesManager: PreferencesManager) {
+private fun RepelToggleCard(preferencesManager: PreferencesManager) {
     val flow = remember(preferencesManager) { preferencesManager.watchRepelActive() }
     val repelActive by flow.collectAsStateWithLifecycle(preferencesManager.isRepelActive)
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = stringResource(R.string.item_repel_toggle_label),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Switch(
-                checked = repelActive,
-                onCheckedChange = { isEnabled ->
-                    preferencesManager.isRepelActive = isEnabled
+    AppCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(AppSizes.spacingLarge)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.item_repel_toggle_label),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(AppSizes.spacingTiny))
+                    Text(
+                        text = stringResource(R.string.item_repel_toggle_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-            )
+                Switch(
+                    checked = repelActive,
+                    onCheckedChange = { isEnabled ->
+                        preferencesManager.isRepelActive = isEnabled
+                    }
+                )
+            }
         }
     }
 }
