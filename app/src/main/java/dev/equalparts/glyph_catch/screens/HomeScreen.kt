@@ -729,9 +729,9 @@ private fun Weather.labelRes(): Int = when (this) {
 }
 
 private suspend fun grantStarterStoneGiftIfEligible(db: PokemonDatabase, preferencesManager: PreferencesManager) {
-//    if (preferencesManager.hasReceivedStarterStoneGift) {
-//        return
-//    }
+    if (preferencesManager.hasReceivedStarterStoneGift) {
+        return
+    }
     withContext(Dispatchers.IO) {
         val inventoryDao = db.inventoryDao()
         STARTER_STONE_GIFT_ITEMS.forEach { item ->
