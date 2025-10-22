@@ -1,4 +1,4 @@
-package dev.equalparts.glyph_catch.screens
+package dev.equalparts.glyph_catch.screens.inventory
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +29,6 @@ import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.data.PokemonDatabase
 import dev.equalparts.glyph_catch.data.PreferencesManager
 import dev.equalparts.glyph_catch.data.nameRes
-import dev.equalparts.glyph_catch.screens.inventory.InventoryItemContent
 import dev.equalparts.glyph_catch.util.ItemUsageError
 import dev.equalparts.glyph_catch.util.ItemUsageResult
 import dev.equalparts.glyph_catch.util.useItemOnPokemon
@@ -70,12 +69,6 @@ fun InventoryItemDetailScreen(
                 if (fetched != null) {
                     pendingPokemon = fetched
                     showConfirmation = true
-                } else {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.item_usage_error_invalid_pokemon),
-                        Toast.LENGTH_SHORT
-                    ).show()
                 }
                 onSelectionConsumed()
             }
@@ -136,7 +129,7 @@ fun InventoryItemDetailScreen(
                                     is ItemUsageResult.Success -> {
                                         Toast.makeText(
                                             context,
-                                            context.getString(R.string.item_usage_success_generic),
+                                            context.getString(R.string.item_usage_success, itemName),
                                             Toast.LENGTH_SHORT
                                         ).show()
                                         onItemUsed()
@@ -146,9 +139,6 @@ fun InventoryItemDetailScreen(
                                             ItemUsageError.ITEM_NOT_AVAILABLE -> context.getString(
                                                 R.string.item_usage_error_no_item,
                                                 itemName
-                                            )
-                                            ItemUsageError.INVALID_POKEMON -> context.getString(
-                                                R.string.item_usage_error_invalid_pokemon
                                             )
                                             else -> context.getString(R.string.item_usage_error_unknown)
                                         }

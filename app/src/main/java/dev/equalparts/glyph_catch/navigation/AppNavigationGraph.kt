@@ -18,11 +18,11 @@ import dev.equalparts.glyph_catch.gameplay.WeatherProviderFactory
 import dev.equalparts.glyph_catch.screens.CaughtPokemonDetailScreen
 import dev.equalparts.glyph_catch.screens.CaughtScreen
 import dev.equalparts.glyph_catch.screens.HomeScreen
-import dev.equalparts.glyph_catch.screens.InventoryItemDetailScreen
 import dev.equalparts.glyph_catch.screens.InventoryScreen
 import dev.equalparts.glyph_catch.screens.PokedexScreen
 import dev.equalparts.glyph_catch.screens.PokemonSelectionScreen
 import dev.equalparts.glyph_catch.screens.SettingsScreen
+import dev.equalparts.glyph_catch.screens.inventory.InventoryItemDetailScreen
 import dev.equalparts.glyph_catch.util.TrainerTipsProvider
 
 @Composable

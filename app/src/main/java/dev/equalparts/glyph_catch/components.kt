@@ -40,7 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import dev.equalparts.glyph_catch.data.Item
-import dev.equalparts.glyph_catch.gameplay.training.TrainingProgression
+import dev.equalparts.glyph_catch.gameplay.TrainingProgression
 import dev.equalparts.glyph_catch.util.ItemSpriteUtils
 import dev.equalparts.glyph_catch.util.PokemonSpriteUtils
 
@@ -267,7 +267,7 @@ fun PokemonLevelChip(level: Int, modifier: Modifier = Modifier) {
 
 @Composable
 fun PokemonExpChip(level: Int, exp: Int, modifier: Modifier = Modifier) {
-    val target = if (level >= TrainingProgression.MAX_LEVEL) null else TrainingProgression.expToNextLevel(level)
+    val target = if (level >= TrainingProgression.MAX_LEVEL) null else TrainingProgression.expNeeded(level)
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(AppSizes.chipCornerRadius))
