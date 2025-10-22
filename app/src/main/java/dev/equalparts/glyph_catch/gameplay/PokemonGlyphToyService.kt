@@ -798,9 +798,9 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         private const val WAKE_LOCK_TIMEOUT_MS = 6000L
         private const val WAKE_LOCK_TAG = "GlyphCatch:Animation"
 
-        private const val TRAINING_EXP_PER_MINUTE = 2
+        private const val TRAINING_EXP_PER_MINUTE = 3
         private const val TRAINING_EXP_BONUS_INTERVAL_MINUTES = 20
-        private const val TRAINING_EXP_BONUS_AMOUNT = 60
+        private const val TRAINING_EXP_BONUS_AMOUNT = 90
 
         private val EVOLUTION_STONES = listOf(
             Item.FIRE_STONE,
