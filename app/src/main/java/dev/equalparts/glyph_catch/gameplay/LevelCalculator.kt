@@ -3,7 +3,7 @@ package dev.equalparts.glyph_catch.gameplay
 /**
  * Handles EXP math for the leveling system.
  */
-object TrainingProgression {
+object LevelCalculator {
     const val MAX_LEVEL = 100
     private const val EXP_PER_LEVEL = 300
 

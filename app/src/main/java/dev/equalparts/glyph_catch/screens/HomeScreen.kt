@@ -55,7 +55,7 @@ import dev.equalparts.glyph_catch.data.Item
 import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.data.PokemonDatabase
 import dev.equalparts.glyph_catch.data.PreferencesManager
-import dev.equalparts.glyph_catch.gameplay.TrainingProgression
+import dev.equalparts.glyph_catch.gameplay.LevelCalculator
 import dev.equalparts.glyph_catch.gameplay.spawner.Weather
 import dev.equalparts.glyph_catch.gameplay.spawner.WeatherProvider
 import dev.equalparts.glyph_catch.ndotFontFamily
@@ -373,7 +373,7 @@ private fun OnboardingCard() {
 @Composable
 private fun TrainingBanner(partner: CaughtPokemon, onPartnerClick: (CaughtPokemon) -> Unit) {
     val species = Pokemon[partner.speciesId]
-    val progress = TrainingProgression.progressFraction(partner.level, partner.exp).coerceIn(0.01f, 1f)
+    val progress = LevelCalculator.progressFraction(partner.level, partner.exp).coerceIn(0.01f, 1f)
 
     AppCard(
         modifier = Modifier.fillMaxWidth(),
