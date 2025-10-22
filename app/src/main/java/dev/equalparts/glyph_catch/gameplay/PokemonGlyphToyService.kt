@@ -304,7 +304,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             0
         }
         val gainedExp = TRAINING_EXP_PER_MINUTE + intervalBonus
-        val result = TrainingProgression.expResult(active.level, active.exp, gainedExp) ?: return
+        val result = LevelCalculator.expResult(active.level, active.exp, gainedExp) ?: return
         dao.updateTrainingProgress(active.id, result.exp, result.level)
         if (result.leveledUp) {
             maybeTriggerEvolution(active.copy(level = result.level, exp = result.exp))
