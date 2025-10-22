@@ -568,39 +568,38 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     }
 
     private suspend fun maybeAwardItems(speciesId: Int, wasDuplicate: Boolean) {
-        if (Random.nextDouble() < EVOLUTION_STONE_DROP_CHANCE && EVOLUTION_STONES.isNotEmpty()) {
+        if (Random.nextDouble() < EVOLUTION_STONE_DROP_CHANCE) {
             val stone = EVOLUTION_STONES.random()
             grantItem(stone)
-            logItemAward(stone, "stone", speciesId, wasDuplicate)
+            logItemAward(stone, "stone", speciesId)
         }
 
         if (wasDuplicate) {
             grantItem(Item.RARE_CANDY)
-            logItemAward(Item.RARE_CANDY, "duplicate", speciesId, wasDuplicate)
+            logItemAward(Item.RARE_CANDY, "duplicate", speciesId)
         }
 
         val totalCaught = db.pokemonDao().getTotalCaughtCount()
-        val linkingGuaranteed = totalCaught > 0 && totalCaught % LINKING_CORD_MILESTONE == 0
-        val linkingChance = Random.nextDouble() < LINKING_CORD_DROP_CHANCE
-        if (linkingGuaranteed || linkingChance) {
+        val linkingCordGuaranteed = totalCaught > 0 && totalCaught % LINKING_CORD_MILESTONE == 0
+        val linkingCordRoll = Random.nextDouble() < LINKING_CORD_DROP_CHANCE
+
+        if (linkingCordGuaranteed || linkingCordRoll) {
             grantItem(Item.LINKING_CORD)
             logItemAward(
                 Item.LINKING_CORD,
-                if (linkingGuaranteed) "milestone" else "chance",
-                speciesId,
-                wasDuplicate
+                if (linkingCordGuaranteed) "milestone" else "chance",
+                speciesId
             )
         }
     }
 
-    private suspend fun logItemAward(item: Item, reason: String, speciesId: Int, wasDuplicate: Boolean) {
+    private suspend fun logItemAward(item: Item, reason: String, speciesId: Int) {
         val snapshot = currentDebugSnapshot()
         debugCapture.log("item_award", snapshot) {
             buildJsonObject {
                 put("item", JsonPrimitive(item.name.lowercase(Locale.US)))
                 put("reason", JsonPrimitive(reason))
                 put("speciesId", JsonPrimitive(speciesId))
-                put("duplicate", JsonPrimitive(wasDuplicate))
             }
         }
     }
