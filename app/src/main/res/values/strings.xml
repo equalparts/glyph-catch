@@ -172,8 +172,9 @@
     <string name="item_linking_cord_name">Linking Cord</string>
     <string name="item_linking_cord_description">Evolves Pokémon that usually require trades.</string>
     <string name="item_repel_name">Repel</string>
-    <string name="item_repel_description">Keeps away wild Pokémon you\'ve already caught.</string>
+    <string name="item_repel_description">Keeps away wild Pokémon. Does not affect species you haven\'t obtained.</string>
     <string name="item_repel_toggle_label">Use Repel</string>
+    <string name="item_repel_toggle_subtitle">Fewer Pokémon will appear</string>
     <string name="pokemon_selection_title">Choose a Pokémon</string>
     <string name="pokemon_selection_hint">Select a Pokémon to use %1$s on.</string>
     <string name="pokemon_selection_no_valid_targets">No Pokémon can use this item right now.</string>
