@@ -146,6 +146,9 @@ interface PokemonDao {
 
     @Query("UPDATE caught_pokemon SET isFavorite = :isFavorite WHERE id = :pokemonId")
     suspend fun updateFavorite(pokemonId: String, isFavorite: Boolean)
+
+    @Query("SELECT COUNT(*) FROM caught_pokemon WHERE level >= :minLevel")
+    suspend fun countPokemonAtLevel(minLevel: Int): Int
 }
 
 @Dao
