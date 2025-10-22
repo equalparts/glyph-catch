@@ -311,6 +311,14 @@ data class GameplayContext(
         }
 
         /**
+         * Returns the count of Pokémon at or above the specified level.
+         */
+        fun countPokemonAtLevel(minLevel: Int): Int = runBlocking {
+            val db = PokemonDatabase.getInstance(applicationContext)
+            db.pokemonDao().countPokemonAtLevel(minLevel)
+        }
+
+        /**
          * Yields `true` if the player possesses one or more of the given item.
          */
         fun hasItem(item: Item): Boolean = runBlocking {

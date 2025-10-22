@@ -286,14 +286,14 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
         // with a training partner).
 
         special(Pokemon.HITMONCHAN) {
-            activate(100.percent) given { trainer.currentPartnerDays >= 5 && trainer.hasNotFound(it) }
+            activate(100.percent) given { trainer.currentPartnerDays >= 3 && trainer.hasNotFound(it) }
         }
 
         special(Pokemon.HITMONLEE) {
             activate(100.percent) given {
                 val daysSinceHitmonchan = trainer.daysSinceLastCaught(Pokemon.HITMONCHAN.id)
-                trainer.currentPartnerDays >= 5 &&
-                    (daysSinceHitmonchan != null && daysSinceHitmonchan >= 5) &&
+                trainer.currentPartnerDays >= 3 &&
+                    (daysSinceHitmonchan != null && daysSinceHitmonchan >= 3) &&
                     trainer.hasNotFound(it)
             }
         }
@@ -340,7 +340,7 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
 
         special(Pokemon.ZAPDOS) {
             activate(50.percent) during weather::thunderstorm given {
-                trainer.hasNotFound(it) && trainer.pokedexCount > 30
+                trainer.hasNotFound(it) && trainer.pokedexCount > 40
             }
         }
 
@@ -359,10 +359,12 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
         // Mewtwo event
         // ============
         //
-        // TODO: Come up with a mechanic. Probably N Pokémon leveled to lv70+?
+        // Mewtwo appears after the player has trained six Pokémon to level 70 or higher.
 
         special(Pokemon.MEWTWO) {
-            activate(1.percent) given { false }
+            activate(10.percent) given {
+                trainer.hasNotFound(it) && trainer.countPokemonAtLevel(70) >= 6
+            }
         }
 
         // Mew event
