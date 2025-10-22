@@ -55,9 +55,9 @@ import dev.equalparts.glyph_catch.data.Item
 import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.data.PokemonDatabase
 import dev.equalparts.glyph_catch.data.PreferencesManager
+import dev.equalparts.glyph_catch.gameplay.TrainingProgression
 import dev.equalparts.glyph_catch.gameplay.spawner.Weather
 import dev.equalparts.glyph_catch.gameplay.spawner.WeatherProvider
-import dev.equalparts.glyph_catch.gameplay.training.TrainingProgression
 import dev.equalparts.glyph_catch.ndotFontFamily
 import dev.equalparts.glyph_catch.util.ActiveItemStatus
 import dev.equalparts.glyph_catch.util.TrainerTipsProvider
@@ -729,9 +729,9 @@ private fun Weather.labelRes(): Int = when (this) {
 }
 
 private suspend fun grantStarterStoneGiftIfEligible(db: PokemonDatabase, preferencesManager: PreferencesManager) {
-    if (preferencesManager.hasReceivedStarterStoneGift) {
-        return
-    }
+//    if (preferencesManager.hasReceivedStarterStoneGift) {
+//        return
+//    }
     withContext(Dispatchers.IO) {
         val inventoryDao = db.inventoryDao()
         STARTER_STONE_GIFT_ITEMS.forEach { item ->

@@ -36,7 +36,6 @@ import dev.equalparts.glyph_catch.data.CaughtPokemon
 import dev.equalparts.glyph_catch.data.Item
 import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.data.PokemonDatabase
-import dev.equalparts.glyph_catch.data.descriptionRes
 import dev.equalparts.glyph_catch.data.nameRes
 import dev.equalparts.glyph_catch.util.canUseItemOn
 
@@ -49,7 +48,6 @@ fun PokemonSelectionScreen(
 ) {
     val pokemonDao = remember(db) { db.pokemonDao() }
     val caughtPokemon by pokemonDao.watchAllCaught().collectAsStateWithLifecycle(emptyList())
-    val itemName = stringResource(item.nameRes())
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showFavoritesOnly by remember { mutableStateOf(false) }
@@ -87,16 +85,10 @@ fun PokemonSelectionScreen(
                 onToggleEvent = { showEventOnly = !showEventOnly }
             )
 
-            Text(
-                text = stringResource(R.string.pokemon_selection_hint, itemName),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
             if (allValidTargets.isEmpty()) {
                 AppEmptyState(
                     primaryText = stringResource(R.string.pokemon_selection_no_valid_targets),
-                    secondaryText = stringResource(item.descriptionRes())
+                    secondaryText = stringResource(item.nameRes())
                 )
             } else if (filteredTargets.isEmpty()) {
                 AppEmptyState(
@@ -154,14 +146,6 @@ private fun PokemonSelectionRow(pokemon: CaughtPokemon, onClick: () -> Unit, mod
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-
-                if (pokemon.nickname != null) {
-                    Text(
-                        text = species.name,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
 
                 PokemonLevelChip(level = pokemon.level)
             }

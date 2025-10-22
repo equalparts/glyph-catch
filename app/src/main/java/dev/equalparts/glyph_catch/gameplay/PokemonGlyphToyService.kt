@@ -27,7 +27,6 @@ import dev.equalparts.glyph_catch.gameplay.spawner.SpawnHistoryTracker
 import dev.equalparts.glyph_catch.gameplay.spawner.SpawnResult
 import dev.equalparts.glyph_catch.gameplay.spawner.SpawnRulesEngine
 import dev.equalparts.glyph_catch.gameplay.spawner.createSpawnRules
-import dev.equalparts.glyph_catch.gameplay.training.TrainingProgression
 import dev.equalparts.glyph_catch.util.GlyphMatrixService
 import java.util.Calendar
 import java.util.Locale
@@ -305,7 +304,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             0
         }
         val gainedExp = TRAINING_EXP_PER_MINUTE + intervalBonus
-        val result = TrainingProgression.applyExp(active.level, active.exp, gainedExp) ?: return
+        val result = TrainingProgression.expResult(active.level, active.exp, gainedExp) ?: return
         dao.updateTrainingProgress(active.id, result.exp, result.level)
         if (result.leveledUp) {
             maybeTriggerEvolution(active.copy(level = result.level, exp = result.exp))
