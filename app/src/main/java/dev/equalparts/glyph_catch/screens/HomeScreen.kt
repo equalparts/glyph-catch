@@ -732,10 +732,6 @@ private suspend fun grantStarterStoneGiftIfEligible(db: PokemonDatabase, prefere
     if (preferencesManager.hasReceivedStarterStoneGift) {
         return
     }
-    val startDate = preferencesManager.playerStartDate
-    if (startDate == 0L || startDate > STARTER_STONE_GIFT_CUTOFF_MILLIS) {
-        return
-    }
     withContext(Dispatchers.IO) {
         val inventoryDao = db.inventoryDao()
         STARTER_STONE_GIFT_ITEMS.forEach { item ->
@@ -784,11 +780,11 @@ private suspend fun ensureRepelUnlocked(db: PokemonDatabase, preferencesManager:
     }
 }
 
-private const val STARTER_STONE_GIFT_CUTOFF_MILLIS = 1_763_078_400_000L
 private val STARTER_STONE_GIFT_ITEMS = listOf(
     Item.FIRE_STONE,
     Item.WATER_STONE,
-    Item.LEAF_STONE
+    Item.LEAF_STONE,
+    Item.THUNDER_STONE
 )
 private const val RECENT_CATCH_WINDOW_MILLIS = 24 * 60 * 60 * 1000L
 private const val SUPER_ROD_UNLOCK_COUNT = 15
