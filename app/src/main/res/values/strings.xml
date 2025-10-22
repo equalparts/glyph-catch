@@ -170,7 +170,7 @@
     <string name="item_rare_candy_name">Rare Candy</string>
     <string name="item_rare_candy_description">Raises a Pokémon\'s level by one.</string>
     <string name="item_linking_cord_name">Linking Cord</string>
-    <string name="item_linking_cord_description">Evolves Pokémon that usually require trades.</string>
+    <string name="item_linking_cord_description">Evolves certain species of Pokémon.</string>
     <string name="item_repel_name">Repel</string>
     <string name="item_repel_description">Keeps away wild Pokémon. Does not affect species you haven\'t obtained.</string>
     <string name="item_repel_toggle_label">Use Repel</string>
