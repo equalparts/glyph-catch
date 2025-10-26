@@ -215,7 +215,7 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
         // including evolved forms at night.
 
         pool("Halloween") {
-            activate(30.percent) during events::halloween during time::night
+            activate(20.percent) during events::halloween during time::night
             activate(15.percent) during events::halloween
 
             Pokemon.GASTLY at 1.0f
