@@ -31,7 +31,7 @@
     <string name="home_empty_recent_catches">No Pokémon caught yet. Pokémon will appear on the Glyph Matrix when your phone is face-down. Long-press the touch button to catch!</string>
     <string name="home_training_badge">Training</string>
     <string name="home_recent_new_badge">New</string>
-    <string name="home_daily_tip_label">Daily trainer tips</string>
+    <string name="home_daily_tip_label">Daily Trainer Tips</string>
     <string name="home_super_rod_new_banner">Super Rod</string>
     <string name="home_super_rod_new_badge">New</string>
     <string name="home_super_rod_active_banner">Using Super Rod</string>
