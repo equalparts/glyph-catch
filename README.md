@@ -6,9 +6,10 @@
 
 ## Fan-made Pokémon collecting game for Nothing Phone 3 Glyph Matrix
 
-Glyph Catch is a fan-made Pokémon collecting game for the Nothing Phone 3 that rewards you for leaving your phone down. The included Glyph Toy normally displays a digital clock, but after some screen-off time, Pokémon will appear. The longer your phone has been locked, the higher your chance of rare encounters. Press the touch button to catch the Pokémon and build your Pokédex!
+> #### [⬇️ Download APK](https://github.com/equalparts/glyph-catch/releases/download/v1.1.0-beta/glyph-catch-v1.1.0-beta.apk)
+> Latest version: v1.1.0 - Oct 26th, 2025
 
-> [⬇️ Download here](https://github.com/equalparts/glyph-catch/releases/download/v1.1.0-beta/glyph-catch-v1.1.0-beta.apk)
+Glyph Catch is a fan-made Pokémon collecting game for the Nothing Phone 3 that rewards you for leaving your phone down. The included Glyph Toy normally displays a digital clock, but after some screen-off time, Pokémon will appear. The longer your phone has been locked, the higher your chance of rare encounters. Press the touch button to catch the Pokémon and build your Pokédex!
 
 ![Screenshots: home screen, Pokédex screen, caught Pokémon screen, Glyph Toy screen](/visual.png)
 
