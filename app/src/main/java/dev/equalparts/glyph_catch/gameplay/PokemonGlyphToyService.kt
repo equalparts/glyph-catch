@@ -560,13 +560,16 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             animationCoordinator.cancelActive()
             displayedSpawn = null
 
-            showCatchAnimation()
+            showCatchAnimation(faster=queueSnapshot.isNotEmpty())
         } catch (e: Exception) {
             Log.e(TAG, "Error saving caught Pokémon", e)
             DebugExceptionTracker.log(applicationContext, e, currentDebugSnapshot(), "catch_pokemon")
         }
     }
 
+    /**
+     * Called after a Pokémon is caught to possibly drop one or more items.
+     */
     private suspend fun maybeAwardItems(speciesId: Int, wasDuplicate: Boolean) {
         if (Random.nextDouble() < EVOLUTION_STONE_DROP_CHANCE) {
             val stone = EVOLUTION_STONES.random()
@@ -604,6 +607,9 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         }
     }
 
+    /**
+     * Adds an item to the inventory.
+     */
     private suspend fun grantItem(item: Item, amount: Int = 1) {
         val inventoryDao = db.inventoryDao()
         val existing = inventoryDao.getItem(item.ordinal)
@@ -617,8 +623,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     /**
      * Plays a brief animation on the Glyph Matrix to confirm a successful catch.
      */
-    private suspend fun showCatchAnimation() {
-        animationCoordinator.playCatch()
+    private suspend fun showCatchAnimation(faster: Boolean) {
+        animationCoordinator.playCatch(faster)
         updateGlyphMatrix()
     }
 
@@ -726,6 +732,9 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             ?: spawnHistory.updateActiveQueue(emptyList())
     }
 
+    /**
+     * Called when a Pokémon is caught to assign a random level, accounting for evolution thresholds.
+     */
     private fun randomLevelForSpecies(speciesId: Int): Int {
         val species = Pokemon[speciesId] ?: return Random.nextInt(18, 41)
         val nextLevelRequirement = species.evolvesTo

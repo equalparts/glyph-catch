@@ -85,7 +85,7 @@ internal class AnimationCoordinator(
     /**
      * Played when the player catches the currently visible Pokémon.
      */
-    suspend fun playCatch() {
+    suspend fun playCatch(faster: Boolean) {
         val job = coroutineContext[Job]
         activeAnimationJob = job
 
@@ -119,7 +119,10 @@ internal class AnimationCoordinator(
                 delay(CATCH_POKEBALL_HOLD_MS)
 
                 manager.setMatrixFrame(glyphFrameHelper.renderBlankFrame())
-                delay(CATCH_POST_CLEAR_DELAY_MS)
+
+                if (!faster) {
+                    delay(CATCH_POST_CLEAR_DELAY_MS)
+                }
             }
         } finally {
             onAnimationEnd()
