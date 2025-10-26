@@ -806,8 +806,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             Item.WATER_STONE,
             Item.THUNDER_STONE,
             Item.LEAF_STONE,
-            Item.MOON_STONE,
-            Item.SUN_STONE
+            Item.MOON_STONE
         )
     }
 }
