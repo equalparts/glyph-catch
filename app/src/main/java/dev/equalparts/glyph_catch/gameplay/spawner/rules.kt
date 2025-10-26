@@ -219,7 +219,6 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
             activate(15.percent) during events::halloween
 
             Pokemon.GASTLY at 1.0f
-            Pokemon.ZUBAT at 1.0f
 
             Pokemon.HAUNTER at 2.0f during time::night
             Pokemon.GENGAR at 1.0f during time::night

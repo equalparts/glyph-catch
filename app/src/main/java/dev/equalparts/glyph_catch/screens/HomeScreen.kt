@@ -60,6 +60,7 @@ import dev.equalparts.glyph_catch.gameplay.spawner.Weather
 import dev.equalparts.glyph_catch.gameplay.spawner.WeatherProvider
 import dev.equalparts.glyph_catch.ndotFontFamily
 import dev.equalparts.glyph_catch.util.ActiveItemStatus
+import dev.equalparts.glyph_catch.util.EventHelpers
 import dev.equalparts.glyph_catch.util.TrainerTipsProvider
 import dev.equalparts.glyph_catch.util.rememberActiveItemStatus
 import dev.equalparts.glyph_catch.util.rememberSleepBonusStatus
@@ -148,6 +149,9 @@ fun HomeScreen(
                     showRepelIndicator = showRepelIndicator,
                     superRodStatus = superRodStatus,
                     isSleepBonusActive = isSleepBonusActive,
+                    isHalloween = EventHelpers.isHalloween(),
+                    isChristmas = EventHelpers.isChristmas(),
+                    isFullMoon = EventHelpers.isFullMoon(),
                     onSuperRodIndicatorClick = {
                         preferencesManager.markSuperRodIndicatorSeen()
                         onBagClick()
@@ -556,14 +560,36 @@ private fun StatusBanners(
     showRepelIndicator: Boolean,
     superRodStatus: ActiveItemStatus,
     isSleepBonusActive: Boolean,
+    isHalloween: Boolean,
+    isChristmas: Boolean,
+    isFullMoon: Boolean,
     onSuperRodIndicatorClick: () -> Unit,
     onRepelIndicatorClick: () -> Unit
 ) {
-    if (showSuperRodIndicator || showRepelIndicator || superRodStatus.isActive || isSleepBonusActive) {
+    val activeEvents = buildList {
+        if (isHalloween) add(stringResource(R.string.home_event_halloween))
+        if (isChristmas) add(stringResource(R.string.home_event_christmas))
+        if (isFullMoon) add(stringResource(R.string.home_event_full_moon))
+    }
+    val hasActiveEvent = activeEvents.isNotEmpty()
+
+    if (
+        showSuperRodIndicator ||
+        showRepelIndicator ||
+        superRodStatus.isActive ||
+        isSleepBonusActive ||
+        hasActiveEvent
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)
         ) {
+            if (hasActiveEvent) {
+                HomeStatusBanner(
+                    text = stringResource(R.string.home_event_banner, activeEvents.joinToString(", ")),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             if (showSuperRodIndicator) {
                 HomeStatusBanner(
                     text = stringResource(R.string.home_super_rod_new_banner),

@@ -560,7 +560,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             animationCoordinator.cancelActive()
             displayedSpawn = null
 
-            showCatchAnimation(faster=queueSnapshot.isNotEmpty())
+            showCatchAnimation(faster = queueSnapshot.isNotEmpty())
         } catch (e: Exception) {
             Log.e(TAG, "Error saving caught Pokémon", e)
             DebugExceptionTracker.log(applicationContext, e, currentDebugSnapshot(), "catch_pokemon")
