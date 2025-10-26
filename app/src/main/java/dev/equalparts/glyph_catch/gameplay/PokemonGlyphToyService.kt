@@ -793,7 +793,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
 
     companion object {
         private const val TAG = "PokemonGlyphToy"
-        private const val MAX_QUEUE_SIZE = 3
+        private const val MAX_QUEUE_SIZE = 4
         private const val PREFS_NAME = "pokemon_glyph_toy_prefs"
         private const val PREFS_KEY_SPAWN_QUEUE = "spawn_queue"
         private const val SLEEP_BONUS_DURATION_MILLIS = 24L * 60 * 60 * 1000
