@@ -123,7 +123,7 @@ data class GameplayContext(
                 val synodicMonthDays = 29.530588853
                 val millisPerDay = 86_400_000.0
                 val fullMoonThresholdDays = 0.9
-                val referenceNewMoon = ZonedDateTime.of(2000, 1, 6, 18, 14, 0, 0, ZoneOffset.UTC)
+                val referenceNewMoon = ZonedDateTime.of(2025, 9, 21, 19, 54, 0, 0, ZoneOffset.UTC)
 
                 val nowUtc = ZonedDateTime.now().withZoneSameInstant(ZoneOffset.UTC)
                 val daysSinceReference = Duration.between(referenceNewMoon, nowUtc).toMillis() / millisPerDay
