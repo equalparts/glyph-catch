@@ -15,7 +15,7 @@ Glyph Catch is a fan-made Pokémon collecting game for the Nothing Phone 3 that 
 
 **Pokémon appear based on real-world conditions.** Weather conditions boost certain Pokémon types. Zubat comes out at night. Phone running low on battery? Voltorb and its evolution might show up. And with Halloween approaching, you can of course expect Ghost Pokémon. Keep an eye on the daily Trainer Tips in the app for hints! **All 151 Kanto Pokémon are obtainable.**
 
-**There's more to do than just catching.** Choose a Pokémon to level up, and it gains EXP while your phone is face-down. Pokémon will evolve when they hit the right level. You'll find items like evolution stones, Rare Candies for leveling, and the Super Rod to fish for certain aquatic species.
+**There's more to do than just catching.** Choose a Pokémon to level up, and it gains EXP while your phone is face-down. Pokémon will evolve when they hit the right level. You'll also find items, like evolution stones, Rare Candies for leveling, and the Super Rod to fish for certain aquatic species.
 
 ## Q&A
 
