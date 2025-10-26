@@ -56,7 +56,8 @@ class RandomWeatherProvider : WeatherProvider {
         val roll = random.nextFloat()
 
         return when {
-            roll < 0.75f -> Weather.CLEAR // 70% chance
+            roll < 0.50f -> Weather.CLEAR // 50% chance
+            roll < 0.75f -> Weather.CLOUDY // 25% chance
             roll < 0.90f -> Weather.RAIN // 15% chance
             roll < 0.95f -> Weather.THUNDERSTORM // 5% chance
             else -> Weather.SNOW // 5% chance

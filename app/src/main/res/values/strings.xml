@@ -44,6 +44,7 @@
     <string name="home_event_christmas">Christmas 🎄</string>
     <string name="home_event_full_moon">Full Moon 🌕</string>
     <string name="home_weather_clear">Clear weather</string>
+    <string name="home_weather_cloudy">Cloudy</string>
     <string name="home_weather_rainy">Rain</string>
     <string name="home_weather_storm">Storm</string>
     <string name="home_weather_snowy">Snowy</string>

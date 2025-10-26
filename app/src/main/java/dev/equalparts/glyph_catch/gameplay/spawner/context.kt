@@ -65,6 +65,9 @@ data class GameplayContext(
 
         val clear: Boolean
             get() = weatherProvider.getCurrentWeather() == Weather.CLEAR
+
+        val cloudy: Boolean
+            get() = weatherProvider.getCurrentWeather() == Weather.CLOUDY
     }
 
     /**
@@ -353,5 +356,5 @@ interface WeatherProvider {
  * Supported weather conditions.
  */
 enum class Weather {
-    CLEAR, RAIN, THUNDERSTORM, SNOW
+    CLEAR, CLOUDY, RAIN, THUNDERSTORM, SNOW
 }

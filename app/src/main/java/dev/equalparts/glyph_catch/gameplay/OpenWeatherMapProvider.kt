@@ -107,7 +107,9 @@ class OpenWeatherMapProvider(
         in 200..299 -> Weather.THUNDERSTORM // Thunderstorm group
         in 300..599 -> Weather.RAIN // Drizzle, Rain group
         in 600..699 -> Weather.SNOW // Snow group
-        else -> Weather.CLEAR // Clear, Clouds, Atmosphere, etc.
+        in 801..804 -> Weather.CLOUDY // Clouds group
+        800 -> Weather.CLEAR // Clear sky
+        else -> Weather.CLEAR // Atmosphere, etc.
     }
 
     companion object {

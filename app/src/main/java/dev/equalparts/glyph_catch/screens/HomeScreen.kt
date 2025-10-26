@@ -745,6 +745,7 @@ private fun bannerTextColor(highlight: Boolean) = if (highlight) {
 
 private fun getWeatherIconResource(weather: Weather) = when (weather) {
     Weather.CLEAR -> R.drawable.weather_clear
+    Weather.CLOUDY -> R.drawable.weather_cloudy
     Weather.RAIN -> R.drawable.weather_rain
     Weather.THUNDERSTORM -> R.drawable.weather_thunderstorm
     Weather.SNOW -> R.drawable.weather_snow
@@ -753,6 +754,7 @@ private fun getWeatherIconResource(weather: Weather) = when (weather) {
 @StringRes
 private fun Weather.labelRes(): Int = when (this) {
     Weather.CLEAR -> R.string.home_weather_clear
+    Weather.CLOUDY -> R.string.home_weather_cloudy
     Weather.RAIN -> R.string.home_weather_rainy
     Weather.THUNDERSTORM -> R.string.home_weather_storm
     Weather.SNOW -> R.string.home_weather_snowy
