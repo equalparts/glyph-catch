@@ -3,19 +3,41 @@
 > [!IMPORTANT]
 > This is an unofficial fan project and is not affiliated with, endorsed by, or associated with Nintendo, The Pokémon Company, or Game Freak. Pokémon and all related trademarks are © Nintendo/Creatures Inc./GAME FREAK inc.
 
-### A Pokémon fan-game for the Nothing Phone 3
 
-Glyph Catch is a fan-made Pokémon catching game for the Nothing Phone 3 that rewards healthier phone usage habits. Leave your phone face-down for a while. When you check back, Pokémon might be waiting on the Glyph Matrix. The longer your phone stays face-down, the rarer the encounters. Long-press the touch button to catch them and complete your Pokédex. No Pokémon around? The Glyph Toy shows a useful digital clock instead!
+## Fan-made Pokémon collecting game for Nothing Phone 3 Glyph Matrix
+
+Glyph Catch is a fan-made Pokémon collecting game for the Nothing Phone 3 that rewards you for leaving your phone down. The included Glyph Toy normally displays a digital clock, but after some screen-off time, Pokémon will appear. The longer your phone has been locked, the higher your chance of rare encounters. Press the touch button to catch the Pokémon and build your Pokédex!
+
+> [⬇️ Download here](https://github.com/equalparts/glyph-catch/releases/download/v1.1.0-beta/glyph-catch-v1.1.0-beta.apk)
 
 ![Screenshots: home screen, Pokédex screen, caught Pokémon screen, Glyph Toy screen](/visual.png)
 
-**Pokémon appear based on real-world conditions.** Rain attracts Water-types. Zubat comes out at night. Phone running low on battery? Voltorb and Electrode might roll by. Halloween nearing? Ghost Pokémon are everywhere. Full moon tonight? Clefairy and Jigglypuff are out. Keep an eye on the `Daily Trainer Tips` for hints!
+**Pokémon appear based on real-world conditions.** All 151 Kanto Pokémon are obtainable. Weather conditions boost certain Pokémon types. Zubat comes out at night. Phone running low on battery? Voltorb and its evolution might show up. And with Halloween approaching, you can of course expect Ghost Pokémon. Keep an eye on the daily Trainer Tips in the app for hints!
 
-**There's more to do than just catching.** Choose a training partner to level up while your phone is face-down. Pokémon will evolve when they reach certain levels. You'll find items like evolution stones to evolve specific Pokémon, rare candies to speed up training, and tools like the Super Rod to fish for aquatic Pokémon. Completing milestones unlocks special encounters—fossil Pokémon, legendary birds, and even Mewtwo if you're dedicated enough.
+**There's more to do than just catching.** Choose a Pokémon to level up, and it gains EXP while your phone is face-down. Pokémon will evolve when they hit the right level. You'll find items like evolution stones, Rare Candies for leveling, and the Super Rod to fish for certain aquatic species.
 
-### Download & install
+## Q&A
 
-> [!WARNING]
-> This is a beta release. There might be some bugs.
+### Can I fail catches?
 
-Go to the [Releases](https://github.com/equalparts/glyph-catch/releases) tab to grab an installable APK file.
+No: when you throw a Poké Ball, you have a 100% chance of catching the Pokémon. Glyph Catch is designed to be consistently rewarding and stress-free. Up to four Pokémon can accumulate, and they stay indefinitely. The only chance element is finding Pokémon.
+
+### What if the phone is in my pocket instead of face-down?
+
+Technically, as long as your phone stays locked and the Glyph Matrix is on, it's counted as "screen-off time". So you won't lose your streak if you quickly check your lock screen for a potentially urgent message.
+
+### Won't I just accumulate a ton of Pokémon overnight?
+
+Not usually: very few Pokémon appear during bedtime! You can adjust your sleep schedule in the settings menu. Fun fact: if you get at least 7.5 hours of screen-off time, you gain a bonus chance of rare encounters the next day.
+
+### Does this impact my battery life?
+
+Not that I've noticed. And if you actually end up using your phone for just a few minutes less per day, that's almost certainly a net gain for battery life.
+
+## Privacy
+
+Glyph Catch does not collect any personal data.
+
+Live weather sync uses the popular OpenWeatherMap API with a geographical location that you configure, no live location. Refer to the [OpenWeatherMap privacy policy](https://openweather.co.uk/privacy-policy) for details.
+
+There is a "Save logs" option (off by default) under "Debugging" for troubleshooting purposes. If enabled, these logs are saved locally on your device, not automatically sent to a server. You can inspect or delete the logs at any point.
