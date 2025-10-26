@@ -584,12 +584,6 @@ private fun StatusBanners(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)
         ) {
-            if (hasActiveEvent) {
-                HomeStatusBanner(
-                    text = stringResource(R.string.home_event_banner, activeEvents.joinToString(", ")),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
             if (showSuperRodIndicator) {
                 HomeStatusBanner(
                     text = stringResource(R.string.home_super_rod_new_banner),
@@ -614,6 +608,13 @@ private fun StatusBanners(
                     modifier = Modifier.fillMaxWidth(),
                     highlight = true,
                     badge = stringResource(R.string.home_super_rod_active_badge, superRodStatus.remainingMinutes)
+                )
+            }
+            if (hasActiveEvent) {
+                HomeStatusBanner(
+                    text = activeEvents.joinToString(", "),
+                    modifier = Modifier.fillMaxWidth(),
+                    badge = stringResource(R.string.home_event_badge)
                 )
             }
             if (isSleepBonusActive) {
@@ -729,7 +730,10 @@ private fun bannerColors(highlight: Boolean) = if (highlight) {
         contentColor = MaterialTheme.colorScheme.onPrimary
     )
 } else {
-    CardDefaults.cardColors()
+    CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    )
 }
 
 @Composable
