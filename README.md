@@ -6,8 +6,8 @@
 
 ## Pokémon collecting fan-game for Nothing Phone 3 Glyph Matrix
 
-> #### [⬇️ Download APK](https://github.com/equalparts/glyph-catch/releases/download/v1.2.0/glyph-catch-v1.2.0.apk)
-> Latest version: v1.2.0 - Oct 27th, 2025 | Adds some graphics settings
+> #### [⬇️ Download APK](https://github.com/equalparts/glyph-catch/releases/download/v1.2.1/glyph-catch-v1.2.1.apk)
+> Latest version: v1.2.1 - Oct 27th, 2025 | Adds Glyph Toy graphics settings
 
 ![Photo of the Glyph Matrix displaying Charmander](/photo.jpg)
 
@@ -38,6 +38,12 @@ Not usually: very few Pokémon appear during bedtime! You can adjust your sleep 
 ### Does this impact my battery life?
 
 Not that I've noticed. And if you actually end up using your phone for just a few minutes less per day, that's almost certainly a net gain for battery life.
+
+### Can I set a dark background for the Glyph Toy?
+
+No - the source sprites would need manual reworking for dark backgrounds (shading, outlines), on top of adapting them to the 25x25 monochrome display. With 151+ Pokémon, it's beyond the scope of this fan project.
+
+However: if you prefer, you can dim the sprite and background slightly under Settings > Graphics (as of v1.2.0).
 
 ## Privacy
 
