@@ -612,9 +612,8 @@ private fun StatusBanners(
             }
             if (hasActiveEvent) {
                 HomeStatusBanner(
-                    text = activeEvents.joinToString(", "),
-                    modifier = Modifier.fillMaxWidth(),
-                    badge = stringResource(R.string.home_event_badge)
+                    text = stringResource(R.string.home_events_banner, activeEvents.joinToString(", ")),
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             if (isSleepBonusActive) {
@@ -731,8 +730,8 @@ private fun bannerColors(highlight: Boolean) = if (highlight) {
     )
 } else {
     CardDefaults.cardColors(
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
 

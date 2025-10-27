@@ -39,10 +39,10 @@
     <string name="home_repel_new_banner">Repel unlocked</string>
     <string name="home_repel_new_badge">New</string>
     <string name="home_well_rested_banner">Sleep bonus: Rare Pokémon rate up</string>
-    <string name="home_event_badge">Events</string>
+    <string name="home_events_banner">Events: %1$s</string>
     <string name="home_event_halloween">Halloween 🎃</string>
     <string name="home_event_christmas">Christmas 🎄</string>
-    <string name="home_event_full_moon">Full Moon 🌕</string>
+    <string name="home_event_full_moon">Full Moon</string>
     <string name="home_weather_clear">Clear weather</string>
     <string name="home_weather_cloudy">Cloudy</string>
     <string name="home_weather_rainy">Rain</string>
