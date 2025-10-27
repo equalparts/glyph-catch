@@ -9,9 +9,11 @@
 > #### [⬇️ Download APK](https://github.com/equalparts/glyph-catch/releases/download/v1.1.1/glyph-catch-v1.1.1.apk)
 > Latest version: v1.1.1 - Oct 26th, 2025
 
+![Photo of the Glyph Matrix displaying Charmander](/photo.jpg)
+
 Glyph Catch is a fan-made Pokémon collecting game for the Nothing Phone 3 that rewards you for leaving your phone down. The included Glyph Toy displays a digital clock by default, but after some screen-off time, Pokémon will appear on your Glyph Matrix. The longer your phone has been locked, the higher your chance of rare encounters. Press the touch button to catch the Pokémon and build your Pokédex!
 
-![Screenshots: home screen, Pokédex screen, caught Pokémon screen, Glyph Toy screen](/visual.png)
+![Screenshots: Home screen, Pokédex screen, Pokémon (caught) screen, Bag screen](/visual.png)
 
 **Pokémon appear based on real-world conditions.** Weather conditions boost certain Pokémon types. Zubat comes out at night. Phone running low on battery? Voltorb and its evolution might show up. And with Halloween approaching, you can of course expect Ghost Pokémon. Keep an eye on the daily Trainer Tips in the app for hints! **All 151 Kanto Pokémon are obtainable.**
 
