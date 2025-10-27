@@ -52,11 +52,17 @@
     <string name="home_evolution_congrats_message">Your %1$s evolved into %2$s!</string>
     <string name="home_evolution_close">Close</string>
     <string name="settings_title">SETTINGS</string>
+    <string name="settings_graphics_title">Glyph Toy</string>
     <string name="settings_weather_title">Weather</string>
     <string name="settings_sleep_title">Sleep &amp; habits</string>
     <string name="settings_weather_provider_random">Random daily weather</string>
+    <string name="settings_section_graphics_description">Change display options</string>
     <string name="settings_section_weather_description">Enable live weather sync</string>
     <string name="settings_section_sleep_description">Set bedtime schedule</string>
+    <string name="settings_graphics_clock_title">Digital clock</string>
+    <string name="settings_graphics_clock_subtitle">Display the time when idle</string>
+    <string name="settings_graphics_brightness_title">Lower brightness</string>
+    <string name="settings_graphics_brightness_subtitle">Dim Glyph Toy sprites</string>
     <string name="settings_weather_use_live_weather_title">Use live weather</string>
     <string name="settings_weather_provider_openweathermap">OpenWeatherMap</string>
     <string name="settings_weather_section_configure">Configure</string>

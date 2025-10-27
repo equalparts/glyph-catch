@@ -42,33 +42,41 @@ internal class AnimationCoordinator(
     /**
      * Shows a static Pokémon image.
      */
-    fun showPokemon(pokemonId: Int) {
-        val frame = glyphFrameHelper.renderPokemonFrame(pokemonId)
+    fun showPokemon(pokemonId: Int, brightnessFactor: Float?) {
+        val baseFrame = glyphFrameHelper.renderPokemonFrame(pokemonId)
+        val frame = brightnessFactor?.let { glyphFrameHelper.adjustBrightness(baseFrame, it) } ?: baseFrame
         glyphMatrixManagerProvider().setMatrixFrame(frame)
     }
 
     /**
      * Played when a new Pokémon appears.
      */
-    fun playSpawn(scope: CoroutineScope, spawn: SpawnResult, onDisplayed: (SpawnResult) -> Unit) {
+    fun playSpawn(
+        scope: CoroutineScope,
+        spawn: SpawnResult,
+        brightnessFactor: Float?,
+        onDisplayed: (SpawnResult) -> Unit
+    ) {
         cancelActive()
 
         val job = scope.launch(animationDispatcher) {
             onAnimationStart()
 
             try {
-                val normalBitmap = glyphFrameHelper.getPokemonBitmap(spawn.pokemon.id)
-                val normalFrame = glyphFrameHelper.renderBitmapFrame(normalBitmap)
-                val invertedFrame = glyphFrameHelper.renderBitmapFrame(glyphFrameHelper.inverted(normalBitmap))
+                val frames = glyphFrameHelper.createSpawnFrames(spawn.pokemon.id)
+                val primary = brightnessFactor?.let { glyphFrameHelper.adjustBrightness(frames.primaryFrame, it) }
+                    ?: frames.primaryFrame
+                val flash = brightnessFactor?.let { glyphFrameHelper.adjustBrightness(frames.flashFrame, it) }
+                    ?: frames.flashFrame
 
-                glyphMatrixManagerProvider().setMatrixFrame(normalFrame)
+                glyphMatrixManagerProvider().setMatrixFrame(primary)
 
                 repeat(SPAWN_FLASH_COUNT) {
                     delay(SPAWN_FLASH_INTERVAL_MS)
-                    glyphMatrixManagerProvider().setMatrixFrame(invertedFrame)
+                    glyphMatrixManagerProvider().setMatrixFrame(flash)
 
                     delay(SPAWN_FLASH_INTERVAL_MS)
-                    glyphMatrixManagerProvider().setMatrixFrame(normalFrame)
+                    glyphMatrixManagerProvider().setMatrixFrame(primary)
                 }
 
                 coroutineContext.ensureActive()

@@ -30,7 +30,11 @@ internal class GlyphMatrixHelper(private val context: Context, val matrixSize: I
     /**
      * Render a Pokémon sprite to display on the Glyph Matrix.
      */
-    fun renderPokemonFrame(pokemonId: Int): IntArray = renderBitmapFrame(getPokemonBitmap(pokemonId))
+    fun renderPokemonFrame(pokemonId: Int, invertColors: Boolean = false): IntArray {
+        val base = getPokemonBitmap(pokemonId)
+        val bitmap = if (invertColors) inverted(base) else base
+        return renderBitmapFrame(bitmap)
+    }
 
     /**
      * Render a [Bitmap] to display on the Glyph Matrix.
@@ -97,6 +101,30 @@ internal class GlyphMatrixHelper(private val context: Context, val matrixSize: I
             }
         }
         return inverted
+    }
+
+    data class SpriteFrames(val primaryFrame: IntArray, val flashFrame: IntArray)
+
+    fun createSpawnFrames(pokemonId: Int): SpriteFrames {
+        val primary = renderPokemonFrame(pokemonId)
+        val flash = renderPokemonFrame(pokemonId, invertColors = true)
+        return SpriteFrames(primaryFrame = primary, flashFrame = flash)
+    }
+
+    fun adjustBrightness(frame: IntArray, factor: Float): IntArray {
+        if (factor >= 0.999f) {
+            return frame
+        }
+        val result = IntArray(frame.size)
+        for (index in frame.indices) {
+            val color = frame[index]
+            val alpha = Color.alpha(color)
+            val red = (Color.red(color) * factor).toInt().coerceIn(0, 255)
+            val green = (Color.green(color) * factor).toInt().coerceIn(0, 255)
+            val blue = (Color.blue(color) * factor).toInt().coerceIn(0, 255)
+            result[index] = Color.argb(alpha, red, green, blue)
+        }
+        return result
     }
 
     /**

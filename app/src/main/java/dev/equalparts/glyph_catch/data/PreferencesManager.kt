@@ -78,6 +78,14 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_GLYPH_TOY_TICKED, false)
         set(value) = prefs.edit { putBoolean(KEY_GLYPH_TOY_TICKED, value) }
 
+    var glyphToyClockEnabled: Boolean
+        get() = prefs.getBoolean(KEY_GLYPH_TOY_CLOCK_ENABLED, true)
+        set(value) = prefs.edit { putBoolean(KEY_GLYPH_TOY_CLOCK_ENABLED, value) }
+
+    var glyphToyLowerBrightness: Boolean
+        get() = prefs.getBoolean(KEY_GLYPH_TOY_LOWER_BRIGHTNESS, false)
+        set(value) = prefs.edit { putBoolean(KEY_GLYPH_TOY_LOWER_BRIGHTNESS, value) }
+
     var hasDiscoveredSuperRod: Boolean
         get() = prefs.getBoolean(KEY_SUPER_ROD_DISCOVERED, false)
         set(value) = prefs.edit { putBoolean(KEY_SUPER_ROD_DISCOVERED, value) }
@@ -193,6 +201,16 @@ class PreferencesManager(context: Context) {
         shouldEmit = { key -> key == KEY_GLYPH_TOY_TICKED },
         distinct = false,
         currentValue = { glyphToyHasTicked }
+    )
+
+    fun watchGlyphToyClockEnabled(): Flow<Boolean> = preferenceFlow(
+        shouldEmit = { key -> key == KEY_GLYPH_TOY_CLOCK_ENABLED },
+        currentValue = { glyphToyClockEnabled }
+    )
+
+    fun watchGlyphToyLowerBrightness(): Flow<Boolean> = preferenceFlow(
+        shouldEmit = { key -> key == KEY_GLYPH_TOY_LOWER_BRIGHTNESS },
+        currentValue = { glyphToyLowerBrightness }
     )
 
     fun shouldShowSuperRodIndicator(): Boolean = hasDiscoveredSuperRod && !isSuperRodIndicatorDismissed
@@ -346,6 +364,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_BEDTIME_MINUTES = "bedtime_minutes"
         private const val KEY_PLAYER_START_DATE = "player_start_date"
         private const val KEY_GLYPH_TOY_TICKED = "glyph_toy_has_ticked"
+        private const val KEY_GLYPH_TOY_CLOCK_ENABLED = "glyph_toy_clock_enabled"
+        private const val KEY_GLYPH_TOY_LOWER_BRIGHTNESS = "glyph_toy_lower_brightness"
         private const val KEY_SUPER_ROD_DISCOVERED = "super_rod_discovered"
         private const val KEY_SUPER_ROD_INDICATOR_DISMISSED = "super_rod_indicator_dismissed"
         private const val KEY_REPEL_DISCOVERED = "repel_discovered"

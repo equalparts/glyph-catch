@@ -5,6 +5,7 @@ import dev.equalparts.glyph_catch.R
 
 enum class SettingsDestination(@field:StringRes val titleRes: Int) {
     SectionList(R.string.settings_title),
+    Graphics(R.string.settings_graphics_title),
     Weather(R.string.settings_weather_title),
     Sleep(R.string.settings_sleep_title),
     Debug(R.string.settings_debug_title)
