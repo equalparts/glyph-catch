@@ -31,7 +31,6 @@ import dev.equalparts.glyph_catch.util.GlyphMatrixService
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.floor
-import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -820,7 +819,6 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         private const val GLYPH_MATRIX_SIZE = 25 // 25x25 circular display
         private const val GLYPH_MATRIX_CENTER = GLYPH_MATRIX_SIZE / 2 // Center index (12, which is the 13th pixel)
         private const val LOWER_BRIGHTNESS_FACTOR = 0.6f
-        private const val CLOCK_BASE_BRIGHTNESS = 255
         private const val WAKE_LOCK_TIMEOUT_MS = 6000L
         private const val WAKE_LOCK_TAG = "GlyphCatch:Animation"
 

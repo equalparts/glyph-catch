@@ -103,7 +103,7 @@ internal class GlyphMatrixHelper(private val context: Context, val matrixSize: I
         return inverted
     }
 
-    data class SpriteFrames(val primaryFrame: IntArray, val flashFrame: IntArray)
+    class SpriteFrames(val primaryFrame: IntArray, val flashFrame: IntArray)
 
     fun createSpawnFrames(pokemonId: Int): SpriteFrames {
         val primary = renderPokemonFrame(pokemonId)

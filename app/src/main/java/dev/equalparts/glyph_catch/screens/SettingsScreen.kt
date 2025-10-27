@@ -24,10 +24,10 @@ import dev.equalparts.glyph_catch.AppSizes
 import dev.equalparts.glyph_catch.R
 import dev.equalparts.glyph_catch.ndotFontFamily
 import dev.equalparts.glyph_catch.screens.settings.DebugSettingsScreen
+import dev.equalparts.glyph_catch.screens.settings.GraphicsSettingsScreen
 import dev.equalparts.glyph_catch.screens.settings.SettingsDestination
 import dev.equalparts.glyph_catch.screens.settings.SettingsSectionList
 import dev.equalparts.glyph_catch.screens.settings.SleepSettingsScreen
-import dev.equalparts.glyph_catch.screens.settings.GraphicsSettingsScreen
 import dev.equalparts.glyph_catch.screens.settings.WeatherSettingsScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
