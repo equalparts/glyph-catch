@@ -63,6 +63,7 @@
     <string name="settings_graphics_clock_subtitle">Display the time when idle</string>
     <string name="settings_graphics_brightness_title">Lower brightness</string>
     <string name="settings_graphics_brightness_subtitle">Dim Glyph Toy sprites</string>
+    <string name="settings_graphics_note_cycle">Cycle the Glyph Toy to apply changes.</string>
     <string name="settings_weather_use_live_weather_title">Use live weather</string>
     <string name="settings_weather_provider_openweathermap">OpenWeatherMap</string>
     <string name="settings_weather_section_configure">Configure</string>

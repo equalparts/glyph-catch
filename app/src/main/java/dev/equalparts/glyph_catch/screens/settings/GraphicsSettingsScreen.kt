@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import dev.equalparts.glyph_catch.AppCard
 import dev.equalparts.glyph_catch.AppSizes
 import dev.equalparts.glyph_catch.R
@@ -55,6 +56,14 @@ fun GraphicsSettingsScreen(modifier: Modifier) {
             subtitle = stringResource(R.string.settings_graphics_brightness_subtitle),
             checked = lowerBrightness,
             onCheckedChange = { enabled -> prefs.glyphToyLowerBrightness = enabled }
+        )
+
+        Text(
+            text = stringResource(R.string.settings_graphics_note_cycle),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
         )
     }
 }
