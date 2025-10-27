@@ -4,20 +4,22 @@
 > This is an unofficial fan project and is not affiliated with, endorsed by, or associated with Nintendo, The Pokémon Company, or Game Freak. Pokémon and all related trademarks are © Nintendo/Creatures Inc./GAME FREAK inc.
 
 
-## Fan-made Pokémon collecting game for Nothing Phone 3 Glyph Matrix
+## Pokémon collecting fan-game for Nothing Phone 3 Glyph Matrix
 
 > #### [⬇️ Download APK](https://github.com/equalparts/glyph-catch/releases/download/v1.1.1/glyph-catch-v1.1.1.apk)
 > Latest version: v1.1.1 - Oct 26th, 2025
 
 ![Photo of the Glyph Matrix displaying Charmander](/photo.jpg)
 
-Glyph Catch is a fan-made Pokémon collecting game for the Nothing Phone 3 that rewards you for leaving your phone down. The included Glyph Toy displays a digital clock by default, but after some screen-off time, Pokémon will appear on your Glyph Matrix. The longer your phone has been locked, the higher your chance of rare encounters. Press the touch button to catch the Pokémon and build your Pokédex!
+Glyph Catch is a fan-made Pokémon catching game for the Nothing Phone 3 that rewards you for reducing screen time! Leave your phone down a while, and Pokémon appear on your Glyph Matrix. The longer your phone has been locked, the higher your chance of rare encounters. Press the touch button to catch the Pokémon and build your Pokédex!
 
 ![Screenshots: Home screen, Pokédex screen, Pokémon (caught) screen, Bag screen](/visual.png)
 
 **Pokémon appear based on real-world conditions.** Weather conditions boost certain Pokémon types. Zubat comes out at night. Phone running low on battery? Voltorb and its evolution might show up. And with Halloween approaching, you can of course expect Ghost Pokémon. Keep an eye on the daily Trainer Tips in the app for hints! **All 151 Kanto Pokémon are obtainable.**
 
 **There's more to do than just catching.** Choose a Pokémon to level up, and it gains EXP while your phone is face-down. Pokémon will evolve when they hit the right level. You'll also find items, like evolution stones, Rare Candies for leveling, and the Super Rod to fish for certain aquatic species.
+
+When there are no Pokémon around to catch, the Glyph Toy displays a handy digital clock instead.
 
 ## Q&A
 
@@ -27,7 +29,7 @@ No: when you throw a Poké Ball, you have a 100% chance of catching the Pokémon
 
 ### What if the phone is in my pocket instead of face-down?
 
-Technically, as long as your phone stays locked and the Glyph Matrix is on, it's counted as "screen-off time". So you won't lose your streak if you quickly check your lock screen for a potentially urgent message.
+Technically, as long as your phone stays locked and the Glyph Matrix is on, it's counted as "screen-off time". So you won't lose your streak, even if you quickly check your lock screen for a potentially urgent message.
 
 ### Won't I just accumulate a ton of Pokémon overnight?
 
