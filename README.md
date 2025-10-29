@@ -45,6 +45,10 @@ No - the source sprites would need manual reworking for dark backgrounds (shadin
 
 However: if you prefer, you can dim the sprite and background slightly under Settings > Graphics (as of v1.2.0).
 
+### No Pokémon are appearing for me, what's wrong?
+
+The Glyph Toy needs to detect at least 15 consecutive minutes of screen-off time before Pokémon can appear. Note that Essential Notifications may disconnect the Glyph Toy and disrupt the timer. If you are getting too many Essential Notifications, consider scheduling quiet time in apps that support it and/or narrowing the Essential Notification rules.
+
 ## Privacy
 
 Glyph Catch does not collect any personal data.
