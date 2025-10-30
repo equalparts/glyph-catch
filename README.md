@@ -25,7 +25,7 @@ When there are no Pokémon around to catch, the Glyph Toy displays a handy digit
 
 ### Can I fail catches?
 
-No: when you throw a Poké Ball, you have a 100% chance of catching the Pokémon. Glyph Catch is designed to be consistently rewarding and stress-free. Up to four Pokémon can accumulate, and they stay indefinitely. The only chance element is finding Pokémon.
+No: when you throw a Poké Ball, you have a 100% chance of catching the Pokémon. Glyph Catch is designed to be consistently rewarding and stress-free. Up to four Pokémon can accumulate, and they stay indefinitely—even if you do unlock your phone after. The only chance element is finding Pokémon.
 
 ### What if the phone is in my pocket instead of face-down?
 
@@ -41,13 +41,17 @@ Not that I've noticed. And if you actually end up using your phone for just a fe
 
 ### Can I set a dark background for the Glyph Toy?
 
-No - the source sprites would need manual reworking for dark backgrounds (shading, outlines), on top of adapting them to the 25x25 monochrome display. With 151+ Pokémon, it's beyond the scope of this fan project.
+No - the source sprites would need manual reworking for dark backgrounds (shading, outlines), on top of already adapting them to the 25x25 monochrome display. With 151+ Pokémon, it's beyond the scope of this fan project.
 
 However: if you prefer, you can dim the sprite and background slightly under Settings > Graphics (as of v1.2.0).
 
 ### No Pokémon are appearing for me, what's wrong?
 
-The Glyph Toy needs to detect at least 15 consecutive minutes of screen-off time before Pokémon can appear. Note that Essential Notifications may disconnect the Glyph Toy and disrupt the timer. If you are getting too many Essential Notifications, consider scheduling quiet time in apps that support it and/or narrowing the Essential Notification rules.
+Make sure you configured Glyph Catch as your AOD Glyph Toy: open Android settings > Glyph Interface > Glyph Toys > ⚙️ > Always-on Glyph Toys and pick Glyph Catch.
+
+The Glyph Toy needs to detect at least 15 consecutive minutes of screen-off time before Pokémon can appear.
+
+Note that Essential Notifications may disconnect the Glyph Toy and disrupt the timer. If you are getting too many Essential Notifications, consider scheduling quiet time in apps that support it and/or narrowing the Essential Notification rules.
 
 ## Privacy
 
