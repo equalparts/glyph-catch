@@ -47,7 +47,7 @@ However: if you prefer, you can dim the sprite and background slightly under Set
 
 ### No Pokémon are appearing for me, what's wrong?
 
-Make sure you configured Glyph Catch as your Always-on Glyph Toy: open Android settings > Glyph Interface > Glyph Toys > ⚙️ > Always-on Glyph Toys and pick Glyph Catch.
+Make sure you configured Glyph Catch as your Always-on Glyph Toy: open Android settings > Glyph Interface > Glyph Toys > ⚙️ > Always-on Glyph Toys and pick Glyph Catch. It is recommended to set the timeout to 1 minute or less.
 
 The Glyph Toy needs to detect at least 15 consecutive minutes of screen-off time before Pokémon can appear.
 
