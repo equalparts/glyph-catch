@@ -7,6 +7,9 @@
 ## Pokémon collecting fan-game for Nothing Phone 3 Glyph Matrix
 
 > #### [⬇️ Download APK](https://github.com/equalparts/glyph-catch/releases/download/v1.2.1/glyph-catch-v1.2.1.apk)
+>
+> **Make sure to configure Glyph Catch as your Always-on Glyph Toy.**
+> 
 > Latest version: v1.2.1 - Oct 27th, 2025 | Adds Glyph Toy graphics settings
 
 ![Photo of the Glyph Matrix displaying Charmander](/photo.jpg)
