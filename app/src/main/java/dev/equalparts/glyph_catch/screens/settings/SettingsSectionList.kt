@@ -1,5 +1,8 @@
 package dev.equalparts.glyph_catch.screens.settings
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,17 +18,42 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import dev.equalparts.glyph_catch.AppCard
 import dev.equalparts.glyph_catch.AppSizes
 import dev.equalparts.glyph_catch.R
+import dev.equalparts.glyph_catch.data.SaveExport
+import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun SettingsSectionList(modifier: Modifier, onSectionSelected: (SettingsDestination) -> Unit) {
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Saves the progress to a file the continued Glyph Catch can import
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val saved = runCatching {
+                val content = SaveExport.export(context)
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(content.toByteArray()) }
+                }
+            }.isSuccess
+            val message = if (saved) R.string.settings_export_success else R.string.settings_export_error
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(
         modifier = modifier.verticalScroll(scrollState),
@@ -53,6 +81,12 @@ fun SettingsSectionList(modifier: Modifier, onSectionSelected: (SettingsDestinat
             title = stringResource(R.string.settings_debug_title),
             description = stringResource(R.string.settings_section_debug_description),
             onClick = { onSectionSelected(SettingsDestination.Debug) }
+        )
+
+        SettingsSectionCard(
+            title = stringResource(R.string.settings_export_title),
+            description = stringResource(R.string.settings_export_description),
+            onClick = { exportLauncher.launch("glyph-catch-${LocalDate.now()}.json") }
         )
     }
 }
