@@ -87,6 +87,10 @@
     <string name="settings_weather_status_add_api_key">Add your API key to enable sync</string>
     <string name="settings_weather_status_select_location">Select a location to enable sync</string>
     <string name="settings_section_debug_description">Troubleshooting options</string>
+    <string name="settings_export_title">Export progress</string>
+    <string name="settings_export_description">Save your Pokémon, Pokédex and Bag to a file you can import elsewhere</string>
+    <string name="settings_export_success">Progress exported</string>
+    <string name="settings_export_error">Couldn\'t export your progress</string>
     <string name="settings_debug_title">Debugging</string>
     <string name="settings_debug_toggle_label">Save logs</string>
     <string name="settings_debug_toggle_subtitle">For troubleshooting only</string>
