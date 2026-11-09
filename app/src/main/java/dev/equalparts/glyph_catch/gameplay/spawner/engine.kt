@@ -133,5 +133,6 @@ data class SpawnResult(
     val pokemon: PokemonSpecies,
     val pool: SpawnPool,
     val screenOffDurationMinutes: Int,
-    val spawnedAtMillis: Long
+    val spawnedAtMillis: Long,
+    val variant: String? = null
 )

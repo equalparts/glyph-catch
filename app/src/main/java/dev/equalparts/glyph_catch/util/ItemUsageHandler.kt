@@ -17,6 +17,7 @@ sealed class ItemUsageResult {
 sealed class UsageEvent {
     data class LevelUp(val newLevel: Int) : UsageEvent()
     data class Evolution(val previousSpeciesId: Int, val newSpeciesId: Int, val newLevel: Int) : UsageEvent()
+    data class HappinessIncrease(val newHappiness: Int) : UsageEvent()
 }
 
 enum class ItemUsageError {
@@ -39,8 +40,9 @@ suspend fun useItemOnPokemon(
 
     when (item) {
         Item.RARE_CANDY -> applyRareCandy(db, preferencesManager, current)
-        Item.LINKING_CORD -> applyEvolutionItem(db, preferencesManager, Item.LINKING_CORD, current) {
-            findTradeEvolutionTarget(it)
+        Item.SOOTHE_BELL_COOKIE -> applySootheBellCookie(db, preferencesManager, current)
+        Item.LINKING_CORD -> applyEvolutionItem(db, preferencesManager, Item.LINKING_CORD, current) { pokemon ->
+            findTradeEvolutionTarget(pokemon)
         }
         Item.FIRE_STONE,
         Item.WATER_STONE,
@@ -83,6 +85,7 @@ private suspend fun applyEvolutionItem(
         newExp = refreshed.exp
     )
     pokemonDao.recordPokedexEntry(target.id)
+    MilestoneHandler.checkMilestones(pokemonDao, preferencesManager)
 
     val updated = pokemonDao.getCaughtPokemon(refreshed.id) ?: refreshed.copy(speciesId = target.id)
     preferencesManager.enqueueEvolutionNotification(refreshed.speciesId, target.id)
@@ -114,11 +117,13 @@ private suspend fun applyRareCandy(
 
     val newLevel = (refreshed.level + 1).coerceAtMost(MAX_POKEMON_LEVEL)
     val newExp = 0
+    val newHappiness = (refreshed.happiness + 2).coerceAtMost(255)
 
     inventoryDao.useItem(Item.RARE_CANDY.ordinal)
     pokemonDao.updateTrainingProgress(refreshed.id, newExp, newLevel)
+    pokemonDao.updateHappiness(refreshed.id, newHappiness)
 
-    val evolution = findLevelEvolutionTarget(refreshed.copy(level = newLevel, exp = newExp))
+    val evolution = findLevelEvolutionTarget(refreshed.copy(level = newLevel, exp = newExp, happiness = newHappiness))
     if (evolution != null) {
         pokemonDao.evolvePokemon(
             pokemonId = refreshed.id,
@@ -127,8 +132,9 @@ private suspend fun applyRareCandy(
             newExp = newExp
         )
         pokemonDao.recordPokedexEntry(evolution.id)
+        MilestoneHandler.checkMilestones(pokemonDao, preferencesManager)
         val updated = pokemonDao.getCaughtPokemon(refreshed.id)
-            ?: refreshed.copy(speciesId = evolution.id, level = newLevel, exp = newExp)
+            ?: refreshed.copy(speciesId = evolution.id, level = newLevel, exp = newExp, happiness = newHappiness)
         preferencesManager.enqueueEvolutionNotification(refreshed.speciesId, evolution.id)
         ItemUsageResult.Success(
             updatedPokemon = updated,
@@ -136,10 +142,42 @@ private suspend fun applyRareCandy(
         )
     } else {
         val updated = pokemonDao.getCaughtPokemon(refreshed.id)
-            ?: refreshed.copy(level = newLevel, exp = newExp)
+            ?: refreshed.copy(level = newLevel, exp = newExp, happiness = newHappiness)
         ItemUsageResult.Success(
             updatedPokemon = updated,
             event = UsageEvent.LevelUp(newLevel)
         )
     }
+}
+
+private suspend fun applySootheBellCookie(
+    db: PokemonDatabase,
+    preferencesManager: PreferencesManager,
+    current: CaughtPokemon
+): ItemUsageResult = db.withTransaction {
+    val pokemonDao = db.pokemonDao()
+    val inventoryDao = db.inventoryDao()
+
+    val refreshed = pokemonDao.getCaughtPokemon(current.id)
+        ?: return@withTransaction ItemUsageResult.Error(ItemUsageError.INVALID_POKEMON)
+
+    val quantity = inventoryDao.getItem(Item.SOOTHE_BELL_COOKIE.ordinal)?.quantity ?: 0
+    if (quantity <= 0) {
+        return@withTransaction ItemUsageResult.Error(ItemUsageError.ITEM_NOT_AVAILABLE, refreshed)
+    }
+    
+    // Amount randomized such that 4~12 cookies max it out (255).
+    // range [22, 64] gives an average of 43, 255/43 = 5.9 cookies.
+    val increase = (22..64).random()
+    val newHappiness = (refreshed.happiness + increase).coerceAtMost(255)
+
+    inventoryDao.useItem(Item.SOOTHE_BELL_COOKIE.ordinal)
+    pokemonDao.updateHappiness(refreshed.id, newHappiness)
+
+    val updated = pokemonDao.getCaughtPokemon(refreshed.id) ?: refreshed.copy(happiness = newHappiness)
+    
+    ItemUsageResult.Success(
+        updatedPokemon = updated,
+        event = UsageEvent.HappinessIncrease(newHappiness)
+    )
 }

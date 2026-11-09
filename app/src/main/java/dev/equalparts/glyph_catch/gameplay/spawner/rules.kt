@@ -55,14 +55,17 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
         // Starter events
         // ==============
         //
-        // The player can catch one of the three starter Pokémon shortly after
+        // The player can catch one of the starter Pokémon shortly after
         // starting the game. The other two starters will be available from
         // the rare spawn pool.
 
         val starters = listOf(
             Pokemon.BULBASAUR,
             Pokemon.CHARMANDER,
-            Pokemon.SQUIRTLE
+            Pokemon.SQUIRTLE,
+            Pokemon.CHIKORITA,
+            Pokemon.CYNDAQUIL,
+            Pokemon.TOTODILE
         )
 
         starters.forEach {
@@ -105,6 +108,25 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
             Pokemon.GASTLY at 0.3f during time::night
             Pokemon.VENONAT at 3.0f during time::night
             Pokemon.ZUBAT at 4.0f during time::night
+
+            // Johto
+            Pokemon.SENTRET at 2.0f
+            Pokemon.LEDYBA at 1.5f during time::day
+            Pokemon.SPINARAK at 1.5f during time::night
+            Pokemon.HOOTHOOT at 2.0f during time::night
+            Pokemon.NATU at 1.0f
+            Pokemon.MAREEP at 1.0f
+            Pokemon.MARILL at 1.0f
+            Pokemon.HOPPIP at 1.0f
+            Pokemon.SUNKERN at 1.0f
+            Pokemon.WOOPER at 1.0f
+            Pokemon.PINECO at 1.0f
+            Pokemon.SNUBBULL at 1.0f
+            Pokemon.TEDDIURSA at 1.0f
+            Pokemon.SLUGMA at 1.0f
+            Pokemon.SWINUB at 1.0f
+            Pokemon.PHANPY at 1.0f
+            Pokemon.HOUNDOUR at 1.0f during time::night
         }
 
         // Fishing pool
@@ -122,6 +144,13 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
             Pokemon.SHELLDER at 1.5f
             Pokemon.HORSEA at 1.0f
             Pokemon.STARYU at 1.0f
+
+            // Johto
+            Pokemon.CHINCHOU at 1.5f
+            Pokemon.QWILFISH at 1.0f
+            Pokemon.CORSOLA at 1.0f
+            Pokemon.REMORAID at 1.5f
+            Pokemon.MANTINE at 1.0f
         }
 
         // Uncommon & Rare
@@ -163,6 +192,25 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
             Pokemon.PINSIR at 0.5f
             Pokemon.TAUROS at 1.0f
             Pokemon.EEVEE at 1.0f
+
+            // Johto
+            Pokemon.SUDOWOODO at 0.5f
+            Pokemon.AIPOM at 1.0f
+            Pokemon.YANMA at 0.8f
+            Pokemon.MURKROW at 1.0f during time::night
+            Pokemon.MISDREAVUS at 0.5f during time::night
+            Pokemon.WOBBUFFET at 1.0f
+            Pokemon.GIRAFARIG at 0.8f
+            Pokemon.DUNSPARCE at 0.5f
+            Pokemon.GLIGAR at 0.8f
+            Pokemon.SHUCKLE at 0.5f
+            Pokemon.HERACROSS at 0.5f
+            Pokemon.SNEASEL at 0.8f during time::night
+            Pokemon.SKARMORY at 0.5f
+            Pokemon.SMEARGLE at 1.0f
+            Pokemon.MILTANK at 0.5f
+            Pokemon.DELIBIRD at 0.5f
+            Pokemon.STANTLER at 0.5f
         }
 
         pool(
@@ -184,6 +232,13 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
             Pokemon.DRATINI at 0.5f
 
             Pokemon.LAPRAS at 5.0f during weather::rain
+
+            // Johto
+            Pokemon.CHIKORITA at 1.0f
+            Pokemon.CYNDAQUIL at 1.0f
+            Pokemon.TOTODILE at 1.0f
+            Pokemon.LARVITAR at 0.5f
+            Pokemon.UNOWN at 0.1f
         }
 
         // Fossil events
@@ -239,14 +294,8 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
             Pokemon.SEEL at 1.5f
             Pokemon.DEWGONG at 1.0f
             Pokemon.LAPRAS at 0.25f
-        }
-
-        special(Pokemon.DELIBIRD) {
-            activate(10.percent) during events::christmas given { trainer.hasNotFound(it) }
-        }
-
-        special(Pokemon.STANTLER) {
-            activate(10.percent) during events::christmas given { trainer.hasNotFound(it) }
+            Pokemon.DELIBIRD at 2.0f
+            Pokemon.STANTLER at 2.0f
         }
 
         // Thunderstorm event
@@ -293,6 +342,15 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
                 val daysSinceHitmonchan = trainer.daysSinceLastCaught(Pokemon.HITMONCHAN.id)
                 trainer.currentPartnerDays >= 3 &&
                     (daysSinceHitmonchan != null && daysSinceHitmonchan >= 3) &&
+                    trainer.hasNotFound(it)
+            }
+        }
+
+        special(Pokemon.HITMONTOP) {
+            activate(100.percent) given {
+                val daysSinceHitmonlee = trainer.daysSinceLastCaught(Pokemon.HITMONLEE.id)
+                trainer.currentPartnerDays >= 3 &&
+                    (daysSinceHitmonlee != null && daysSinceHitmonlee >= 3) &&
                     trainer.hasNotFound(it)
             }
         }
@@ -372,7 +430,46 @@ fun createSpawnRules(context: GameplayContext): SpawnRules {
         // Mew is a one-time spawn when all other 150 Pokémon have been caught.
 
         special(Pokemon.MEW) {
-            activate(10.percent) given { trainer.hasNotFound(it) && trainer.pokedexCount >= 150 }
+            activate(10.percent) given { trainer.hasNotFound(it) && trainer.kantoPokedexCount >= 150 }
+        }
+
+        // Johto Legendaries
+        // =================
+
+        special(Pokemon.RAIKOU) {
+            activate(5.percent) during weather::thunderstorm given {
+                trainer.hasNotFound(it) && trainer.pokedexCount > 100
+            }
+        }
+
+        special(Pokemon.ENTEI) {
+            activate(5.percent) during weather::clear during time::day given {
+                trainer.hasNotFound(it) && trainer.pokedexCount > 100 && season.summer
+            }
+        }
+
+        special(Pokemon.SUICUNE) {
+            activate(5.percent) during weather::rain given {
+                trainer.hasNotFound(it) && trainer.pokedexCount > 100
+            }
+        }
+
+        special(Pokemon.LUGIA) {
+            activate(1.percent increaseBy { scaling.minutes / 120f }) during time::night during weather::thunderstorm given {
+                trainer.hasNotFound(it) && trainer.pokedexCount > 150
+            }
+        }
+
+        special(Pokemon.HO_OH) {
+            activate(1.percent increaseBy { scaling.minutes / 120f }) during time::day during weather::clear given {
+                trainer.hasNotFound(it) && trainer.pokedexCount > 150
+            }
+        }
+
+        special(Pokemon.CELEBI) {
+            activate(10.percent) during events::fullMoon given {
+                trainer.hasNotFound(it) && trainer.pokedexCount >= 240
+            }
         }
     }
 }

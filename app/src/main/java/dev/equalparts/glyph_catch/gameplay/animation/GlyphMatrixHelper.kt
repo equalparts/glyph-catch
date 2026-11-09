@@ -22,16 +22,16 @@ internal class GlyphMatrixHelper(private val context: Context, val matrixSize: I
     /**
      * Load a Pokémon sprite as a [Bitmap].
      */
-    fun getPokemonBitmap(pokemonId: Int): Bitmap {
-        val resourceId = PokemonSpriteUtils.getSpriteResourceId(context, pokemonId)
+    fun getPokemonBitmap(pokemonId: Int, variant: String? = null): Bitmap {
+        val resourceId = PokemonSpriteUtils.getSpriteResourceId(context, pokemonId, variant)
         return loadBitmap(resourceId)
     }
 
     /**
      * Render a Pokémon sprite to display on the Glyph Matrix.
      */
-    fun renderPokemonFrame(pokemonId: Int, invertColors: Boolean = false): IntArray {
-        val base = getPokemonBitmap(pokemonId)
+    fun renderPokemonFrame(pokemonId: Int, invertColors: Boolean = false, variant: String? = null): IntArray {
+        val base = getPokemonBitmap(pokemonId, variant)
         val bitmap = if (invertColors) inverted(base) else base
         return renderBitmapFrame(bitmap)
     }
@@ -55,6 +55,13 @@ internal class GlyphMatrixHelper(private val context: Context, val matrixSize: I
      */
     fun renderCircleFrame(diameter: Int, color: Int = Color.WHITE): IntArray =
         renderBitmapFrame(createCircleBitmap(diameter, color))
+
+    /**
+     * Render a drawable to display on the Glyph Matrix.
+     */
+    fun renderDrawableFrame(@DrawableRes resourceId: Int): IntArray {
+        return renderBitmapFrame(loadBitmap(resourceId))
+    }
 
     /**
      * Render a blank frame to display on the Glyph Matrix.
@@ -105,9 +112,9 @@ internal class GlyphMatrixHelper(private val context: Context, val matrixSize: I
 
     class SpriteFrames(val primaryFrame: IntArray, val flashFrame: IntArray)
 
-    fun createSpawnFrames(pokemonId: Int): SpriteFrames {
-        val primary = renderPokemonFrame(pokemonId)
-        val flash = renderPokemonFrame(pokemonId, invertColors = true)
+    fun createSpawnFrames(pokemonId: Int, variant: String? = null): SpriteFrames {
+        val primary = renderPokemonFrame(pokemonId, variant = variant)
+        val flash = renderPokemonFrame(pokemonId, invertColors = true, variant = variant)
         return SpriteFrames(primaryFrame = primary, flashFrame = flash)
     }
 

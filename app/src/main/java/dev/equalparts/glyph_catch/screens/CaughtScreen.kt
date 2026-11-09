@@ -62,12 +62,18 @@ private data class CaughtActions(
     val onClearSearch: () -> Unit,
     val onToggleFavorites: () -> Unit,
     val onToggleEvent: () -> Unit,
+    val onToggleEggs: () -> Unit,
     val onToggleFavorite: (CaughtPokemon) -> Unit,
     val onPokemonClick: (CaughtPokemon) -> Unit
 )
 
 @Composable
-fun CaughtScreen(db: PokemonDatabase, initialSearchQuery: String = "", onPokemonClick: (CaughtPokemon) -> Unit = {}) {
+fun CaughtScreen(
+    db: PokemonDatabase,
+    initialSearchQuery: String = "",
+    initialShowEggsOnly: Boolean = false,
+    onPokemonClick: (CaughtPokemon) -> Unit = {}
+) {
     val pokemonDao = remember(db) { db.pokemonDao() }
     val caughtPokemon by pokemonDao.watchAllCaught().collectAsStateWithLifecycle(emptyList())
     val totalCaught by pokemonDao.watchTotalCaughtCount().collectAsStateWithLifecycle(0)
@@ -76,6 +82,7 @@ fun CaughtScreen(db: PokemonDatabase, initialSearchQuery: String = "", onPokemon
     var searchQuery by rememberSaveable(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
     var showFavoritesOnly by remember { mutableStateOf(false) }
     var showEventOnly by remember { mutableStateOf(false) }
+    var showEggsOnly by rememberSaveable(initialShowEggsOnly) { mutableStateOf(initialShowEggsOnly) }
 
     val toggleFavorite: (CaughtPokemon) -> Unit = { pokemon ->
         scope.launch { pokemonDao.updateFavorite(pokemon.id, !pokemon.isFavorite) }
@@ -84,7 +91,8 @@ fun CaughtScreen(db: PokemonDatabase, initialSearchQuery: String = "", onPokemon
     val filterState = PokemonFilterState(
         searchQuery = searchQuery,
         showFavoritesOnly = showFavoritesOnly,
-        showEventOnly = showEventOnly
+        showEventOnly = showEventOnly,
+        showEggsOnly = showEggsOnly
     )
 
     val filteredPokemon by remember(caughtPokemon, filterState) {
@@ -102,6 +110,7 @@ fun CaughtScreen(db: PokemonDatabase, initialSearchQuery: String = "", onPokemon
         onClearSearch = { searchQuery = "" },
         onToggleFavorites = { showFavoritesOnly = !showFavoritesOnly },
         onToggleEvent = { showEventOnly = !showEventOnly },
+        onToggleEggs = { showEggsOnly = !showEggsOnly },
         onToggleFavorite = toggleFavorite,
         onPokemonClick = onPokemonClick
     )
@@ -126,7 +135,8 @@ private fun CaughtScreenContent(state: CaughtUiState, actions: CaughtActions) {
             onSearchChange = actions.onSearchChange,
             onClearSearch = actions.onClearSearch,
             onToggleFavorites = actions.onToggleFavorites,
-            onToggleEvent = actions.onToggleEvent
+            onToggleEvent = actions.onToggleEvent,
+            onToggleEggs = actions.onToggleEggs
         )
 
         Spacer(modifier = Modifier.height(AppSizes.spacingLarge))
@@ -178,6 +188,17 @@ fun CaughtPokemonCard(
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
     val formattedDate = remember(pokemon.caughtAt) { dateFormat.format(Date(pokemon.caughtAt)) }
 
+    val name = if (pokemon.isEgg) {
+        stringResource(R.string.caught_pokemon_egg_name)
+    } else {
+        val baseName = pokemon.nickname ?: species.name
+        if (pokemon.variant != null) {
+            "$baseName ${pokemon.variant.uppercase()}"
+        } else {
+            baseName
+        }
+    }
+
     AppCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = { onClick(pokemon) },
@@ -191,10 +212,18 @@ fun CaughtPokemonCard(
                 .padding(AppSizes.spacingMedium),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PokemonSpriteCircle(
-                pokemonId = pokemon.speciesId,
-                pokemonName = species.name
-            )
+            if (pokemon.isEgg) {
+                PokemonSpriteCircle(
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.matrix_egg),
+                    contentDescription = name
+                )
+            } else {
+                PokemonSpriteCircle(
+                    pokemonId = pokemon.speciesId,
+                    pokemonName = species.name,
+                    variant = pokemon.variant
+                )
+            }
 
             Spacer(modifier = Modifier.size(AppSizes.spacingMedium))
 
@@ -205,7 +234,7 @@ fun CaughtPokemonCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = pokemon.nickname ?: species.name,
+                        text = name,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium
@@ -214,12 +243,31 @@ fun CaughtPokemonCard(
 
                 Spacer(modifier = Modifier.height(AppSizes.spacingTiny))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)
-                ) {
-                    PokemonLevelChip(level = pokemon.level)
-                    PokemonExpChip(level = pokemon.level, exp = pokemon.exp)
+                if (pokemon.isEgg) {
+                    val progress = if (pokemon.requiredSteps > 0) {
+                        pokemon.steps.toFloat() / pokemon.requiredSteps
+                    } else {
+                        0f
+                    }
+                    val descriptionRes = when {
+                        progress < 0.25f -> R.string.caught_pokemon_egg_description_1
+                        progress < 0.50f -> R.string.caught_pokemon_egg_description_2
+                        progress < 0.75f -> R.string.caught_pokemon_egg_description_3
+                        else -> R.string.caught_pokemon_egg_description_4
+                    }
+                    Text(
+                        text = stringResource(descriptionRes),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)
+                    ) {
+                        PokemonLevelChip(level = pokemon.level)
+                        PokemonExpChip(level = pokemon.level, exp = pokemon.exp)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(AppSizes.spacingTiny))

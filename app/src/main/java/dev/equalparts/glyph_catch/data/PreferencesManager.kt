@@ -106,38 +106,81 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_STARTER_STONE_GIFT, false)
         set(value) = prefs.edit { putBoolean(KEY_STARTER_STONE_GIFT, value) }
 
+    var hasReceivedTogepiEggMilestone: Boolean
+        get() = prefs.getBoolean(KEY_TOGEPI_EGG_MILESTONE, false)
+        set(value) = prefs.edit { putBoolean(KEY_TOGEPI_EGG_MILESTONE, value) }
+
     var isRepelActive: Boolean
         get() = prefs.getBoolean(KEY_REPEL_ACTIVE, false)
         set(value) = prefs.edit { putBoolean(KEY_REPEL_ACTIVE, value) }
 
-    var activeTrainingPartnerId: String?
-        get() = prefs.getString(KEY_ACTIVE_TRAINING_PARTNER_ID, null)
-        set(value) {
-            prefs.edit {
-                if (value == null) {
-                    remove(KEY_ACTIVE_TRAINING_PARTNER_ID)
-                } else {
-                    putString(KEY_ACTIVE_TRAINING_PARTNER_ID, value)
-                }
+    fun activeTrainingPartnerId(slot: Int): String? {
+        val key = if (slot == 2) KEY_ACTIVE_TRAINING_PARTNER_ID_2 else KEY_ACTIVE_TRAINING_PARTNER_ID
+        return prefs.getString(key, null)
+    }
+
+    private fun setActiveTrainingPartnerId(slot: Int, value: String?) {
+        val key = if (slot == 2) KEY_ACTIVE_TRAINING_PARTNER_ID_2 else KEY_ACTIVE_TRAINING_PARTNER_ID
+        prefs.edit {
+            if (value == null) {
+                remove(key)
+            } else {
+                putString(key, value)
             }
         }
+    }
+
+    fun trainingPartnerBeganAt(slot: Int): Long {
+        val key = if (slot == 2) KEY_TRAINING_PARTNER_BEGAN_AT_2 else KEY_TRAINING_PARTNER_BEGAN_AT
+        return prefs.getLong(key, 0L)
+    }
+
+    private fun setTrainingPartnerBeganAt(slot: Int, value: Long) {
+        val key = if (slot == 2) KEY_TRAINING_PARTNER_BEGAN_AT_2 else KEY_TRAINING_PARTNER_BEGAN_AT
+        prefs.edit { putLong(key, value) }
+    }
+
+    var activeTrainingPartnerId: String?
+        get() = activeTrainingPartnerId(1)
+        set(value) = setActiveTrainingPartnerId(1, value)
 
     var trainingPartnerBeganAt: Long
-        get() = prefs.getLong(KEY_TRAINING_PARTNER_BEGAN_AT, 0L)
-        set(value) = prefs.edit { putLong(KEY_TRAINING_PARTNER_BEGAN_AT, value) }
+        get() = trainingPartnerBeganAt(1)
+        set(value) = setTrainingPartnerBeganAt(1, value)
+
+    fun markTrainingPartner(slot: Int, pokemonId: String, startedAt: Long = System.currentTimeMillis()) {
+        val currentId = activeTrainingPartnerId(slot)
+        val currentBeganAt = trainingPartnerBeganAt(slot)
+        val shouldReset = currentId != pokemonId || currentBeganAt == 0L
+        setActiveTrainingPartnerId(slot, pokemonId)
+        if (shouldReset) {
+            setTrainingPartnerBeganAt(slot, startedAt)
+        }
+    }
 
     fun markTrainingPartner(pokemonId: String, startedAt: Long = System.currentTimeMillis()) {
-        val shouldReset = activeTrainingPartnerId != pokemonId || trainingPartnerBeganAt == 0L
-        activeTrainingPartnerId = pokemonId
-        if (shouldReset) {
-            trainingPartnerBeganAt = startedAt
+        markTrainingPartner(1, pokemonId, startedAt)
+    }
+
+    fun clearTrainingPartner(slot: Int) {
+        val idKey = if (slot == 2) KEY_ACTIVE_TRAINING_PARTNER_ID_2 else KEY_ACTIVE_TRAINING_PARTNER_ID
+        val beganKey = if (slot == 2) KEY_TRAINING_PARTNER_BEGAN_AT_2 else KEY_TRAINING_PARTNER_BEGAN_AT
+        prefs.edit {
+            remove(idKey)
+            remove(beganKey)
         }
     }
 
     fun clearTrainingPartner() {
+        clearTrainingPartner(1)
+    }
+
+    fun clearAllTrainingPartners() {
         prefs.edit {
             remove(KEY_ACTIVE_TRAINING_PARTNER_ID)
             remove(KEY_TRAINING_PARTNER_BEGAN_AT)
+            remove(KEY_ACTIVE_TRAINING_PARTNER_ID_2)
+            remove(KEY_TRAINING_PARTNER_BEGAN_AT_2)
         }
     }
 
@@ -189,6 +232,54 @@ class PreferencesManager(context: Context) {
         }
     }
 
+    fun enqueueHatchNotification(speciesId: Int) {
+        synchronized(pendingHatchNotificationsLock) {
+            val current = getPendingHatchNotifications()
+            val updated = mutableListOf(HatchNotification(speciesId)).apply {
+                addAll(current)
+            }
+            persistPendingHatchNotificationsLocked(updated)
+        }
+    }
+
+    fun consumeHatchNotification(): HatchNotification? {
+        synchronized(pendingHatchNotificationsLock) {
+            val current = getPendingHatchNotifications()
+            if (current.isEmpty()) {
+                return null
+            }
+            val remaining = current.drop(1)
+            persistPendingHatchNotificationsLocked(remaining)
+            return current.first()
+        }
+    }
+
+    fun watchPendingHatchNotifications(): Flow<List<HatchNotification>> =
+        pendingHatchNotificationsState.asStateFlow()
+
+    private fun getPendingHatchNotifications(): List<HatchNotification> {
+        val stored = prefs.getString(KEY_PENDING_HATCHES, null) ?: return emptyList()
+        return runCatching {
+            json.decodeFromString(ListSerializer(HatchNotification.serializer()), stored)
+        }.getOrElse { emptyList() }
+    }
+
+    private fun setPendingHatchNotifications(notifications: List<HatchNotification>) {
+        if (notifications.isEmpty()) {
+            prefs.edit { remove(KEY_PENDING_HATCHES) }
+        } else {
+            val encoded = json.encodeToString(ListSerializer(HatchNotification.serializer()), notifications)
+            prefs.edit { putString(KEY_PENDING_HATCHES, encoded) }
+        }
+    }
+
+    private fun persistPendingHatchNotificationsLocked(notifications: List<HatchNotification>) {
+        setPendingHatchNotifications(notifications)
+        if (pendingHatchNotificationsState.value != notifications) {
+            pendingHatchNotificationsState.value = notifications
+        }
+    }
+
     var sleepBonusExpiresAt: Long
         get() = prefs.getLong(KEY_SLEEP_BONUS_EXPIRES_AT, 0L)
         set(value) = prefs.edit { putLong(KEY_SLEEP_BONUS_EXPIRES_AT, value) }
@@ -196,6 +287,30 @@ class PreferencesManager(context: Context) {
     var lastSpawnScreenOffMinutes: Int
         get() = prefs.getInt(KEY_LAST_SPAWN_SCREEN_OFF_MINUTES, 0)
         set(value) = prefs.edit { putInt(KEY_LAST_SPAWN_SCREEN_OFF_MINUTES, value.coerceAtLeast(0)) }
+
+    var activeEggId: String?
+        get() = prefs.getString(KEY_ACTIVE_EGG_ID, null)
+        set(value) = prefs.edit { putString(KEY_ACTIVE_EGG_ID, value) }
+
+    var lastStepCount: Int
+        get() = prefs.getInt(KEY_LAST_STEP_COUNT, -1)
+        set(value) = prefs.edit { putInt(KEY_LAST_STEP_COUNT, value) }
+
+    var breedingBeganAt: Long
+        get() = prefs.getLong(KEY_BREEDING_BEGAN_AT, 0L)
+        set(value) = prefs.edit { putLong(KEY_BREEDING_BEGAN_AT, value) }
+
+    var pendingEggSpeciesId: Int
+        get() = prefs.getInt(KEY_PENDING_EGG_SPECIES_ID, 0)
+        set(value) = prefs.edit { putInt(KEY_PENDING_EGG_SPECIES_ID, value) }
+
+    var pendingEggAppearedAt: Long
+        get() = prefs.getLong(KEY_PENDING_EGG_APPEARED_AT, 0L)
+        set(value) = prefs.edit { putLong(KEY_PENDING_EGG_APPEARED_AT, value) }
+
+    var breedingPartnerIds: Set<String>
+        get() = prefs.getStringSet(KEY_BREEDING_PARTNER_IDS, emptySet()) ?: emptySet()
+        set(value) = prefs.edit { putStringSet(KEY_BREEDING_PARTNER_IDS, value) }
 
     fun watchGlyphToyHasTicked(): Flow<Boolean> = preferenceFlow(
         shouldEmit = { key -> key == KEY_GLYPH_TOY_TICKED },
@@ -230,6 +345,11 @@ class PreferencesManager(context: Context) {
     fun watchRepelIndicator(): Flow<Boolean> = preferenceFlow(
         shouldEmit = { key -> key == null || key in REPEL_KEYS },
         currentValue = { shouldShowRepelIndicator() }
+    )
+
+    fun watchActiveEggId(): Flow<String?> = preferenceFlow(
+        shouldEmit = { it == KEY_ACTIVE_EGG_ID },
+        currentValue = { activeEggId }
     )
 
     fun markSuperRodDiscovered() {
@@ -372,12 +492,22 @@ class PreferencesManager(context: Context) {
         private const val KEY_REPEL_INDICATOR_DISMISSED = "repel_indicator_dismissed"
         private const val KEY_REPEL_ACTIVE = "repel_active"
         private const val KEY_STARTER_STONE_GIFT = "starter_stone_gift"
+        private const val KEY_TOGEPI_EGG_MILESTONE = "togepi_egg_milestone"
         private const val KEY_SLEEP_BONUS_EXPIRES_AT = "sleep_bonus_expires_at"
         private const val KEY_DEBUG_CAPTURE_ENABLED = "debug_capture_enabled"
         private const val KEY_LAST_SPAWN_SCREEN_OFF_MINUTES = "last_spawn_screen_off_minutes"
         private const val KEY_ACTIVE_TRAINING_PARTNER_ID = "training_partner_id"
         private const val KEY_TRAINING_PARTNER_BEGAN_AT = "training_partner_began_at"
+        private const val KEY_ACTIVE_TRAINING_PARTNER_ID_2 = "training_partner_id_2"
+        private const val KEY_TRAINING_PARTNER_BEGAN_AT_2 = "training_partner_began_at_2"
+        private const val KEY_ACTIVE_EGG_ID = "active_egg_id"
+        private const val KEY_LAST_STEP_COUNT = "last_step_count"
+        private const val KEY_BREEDING_BEGAN_AT = "breeding_began_at"
+        private const val KEY_PENDING_EGG_SPECIES_ID = "pending_egg_species_id"
+        private const val KEY_PENDING_EGG_APPEARED_AT = "pending_egg_appeared_at"
+        private const val KEY_BREEDING_PARTNER_IDS = "breeding_partner_ids"
         private const val KEY_PENDING_EVOLUTIONS = "pending_evolutions"
+        private const val KEY_PENDING_HATCHES = "pending_hatches"
         private const val MINUTES_PER_DAY = 24 * 60
         private const val DEFAULT_BEDTIME_MINUTES = 23 * 60
         private const val SLEEP_BONUS_POLL_ACTIVE_MILLIS = 30_000L
@@ -402,5 +532,8 @@ class PreferencesManager(context: Context) {
 
         private val pendingEvolutionNotificationsState = MutableStateFlow<List<EvolutionNotification>>(emptyList())
         private val pendingEvolutionNotificationsLock = Any()
+
+        private val pendingHatchNotificationsState = MutableStateFlow<List<HatchNotification>>(emptyList())
+        private val pendingHatchNotificationsLock = Any()
     }
 }

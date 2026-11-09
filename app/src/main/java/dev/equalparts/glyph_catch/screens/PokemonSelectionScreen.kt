@@ -52,11 +52,13 @@ fun PokemonSelectionScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showFavoritesOnly by remember { mutableStateOf(false) }
     var showEventOnly by remember { mutableStateOf(false) }
+    var showEggsOnly by remember { mutableStateOf(false) }
 
     val filterState = PokemonFilterState(
         searchQuery = searchQuery,
         showFavoritesOnly = showFavoritesOnly,
-        showEventOnly = showEventOnly
+        showEventOnly = showEventOnly,
+        showEggsOnly = showEggsOnly
     )
 
     val allValidTargets by remember(caughtPokemon, item) {
@@ -82,7 +84,8 @@ fun PokemonSelectionScreen(
                 onSearchChange = { searchQuery = it },
                 onClearSearch = { searchQuery = "" },
                 onToggleFavorites = { showFavoritesOnly = !showFavoritesOnly },
-                onToggleEvent = { showEventOnly = !showEventOnly }
+                onToggleEvent = { showEventOnly = !showEventOnly },
+                onToggleEggs = { showEggsOnly = !showEggsOnly }
             )
 
             if (allValidTargets.isEmpty()) {
@@ -118,7 +121,12 @@ fun PokemonSelectionScreen(
 @Composable
 private fun PokemonSelectionRow(pokemon: CaughtPokemon, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val species = Pokemon[pokemon.speciesId] ?: return
-    val displayName = pokemon.nickname ?: species.name
+    val name = pokemon.nickname ?: species.name
+    val displayName = if (pokemon.variant != null) {
+        "$name ${pokemon.variant.uppercase()}"
+    } else {
+        name
+    }
 
     AppCard(
         modifier = modifier.fillMaxWidth(),
@@ -134,6 +142,7 @@ private fun PokemonSelectionRow(pokemon: CaughtPokemon, onClick: () -> Unit, mod
             PokemonSpriteCircle(
                 pokemonId = pokemon.speciesId,
                 pokemonName = species.name,
+                variant = pokemon.variant,
                 modifier = Modifier.size(AppSizes.pokemonImageSize)
             )
 

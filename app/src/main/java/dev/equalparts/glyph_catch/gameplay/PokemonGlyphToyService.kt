@@ -1,6 +1,10 @@
 package dev.equalparts.glyph_catch.gameplay
 
 import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.PowerManager
 import android.text.format.DateFormat
 import android.util.Log
@@ -56,13 +60,14 @@ data class PersistentSpawn(
     val isSpecial: Boolean,
     val isConditional: Boolean,
     val screenOffDurationMinutes: Int,
-    val spawnedAtMillis: Long = System.currentTimeMillis()
+    val spawnedAtMillis: Long = System.currentTimeMillis(),
+    val variant: String? = null
 )
 
 /**
  * The interactive Glyph Toy.
  */
-class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
+class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy"), SensorEventListener {
 
     private var coroutineScope: CoroutineScope? = null
 
@@ -70,6 +75,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     private lateinit var preferencesManager: PreferencesManager
     private lateinit var frameFactory: GlyphMatrixHelper
     private lateinit var animationCoordinator: AnimationCoordinator
+    private lateinit var breedingController: BreedingController
+    private var sensorManager: SensorManager? = null
 
     private lateinit var gameplayContext: GameplayContext
     private lateinit var spawnEngine: SpawnRulesEngine
@@ -110,6 +117,14 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             onAnimationStart = { acquireAnimationWakeLock() },
             onAnimationEnd = { releaseAnimationWakeLock() }
         )
+        breedingController = BreedingController(
+            preferencesManager = preferencesManager,
+            logger = object : BreedingLogger {
+                override fun d(tag: String, message: String) {
+                    Log.d(tag, message)
+                }
+            }
+        )
 
         val weatherProvider = WeatherProviderFactory.create(applicationContext)
         gameplayContext = GameplayContext(applicationContext, weatherProvider, spawnQueue)
@@ -123,6 +138,12 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             WAKE_LOCK_TAG
         )
 
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val stepSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        if (stepSensor != null) {
+            sensorManager?.registerListener(this, stepSensor, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+
         debugCapture = DebugCaptureManager.shared(applicationContext)
     }
 
@@ -131,6 +152,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     override fun onDestroy() {
         super.onDestroy()
+        sensorManager?.unregisterListener(this)
         if (::animationCoordinator.isInitialized) {
             animationCoordinator.cancelActive()
         }
@@ -142,7 +164,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             animationWakeLock?.let { wakeLock ->
                 if (wakeLock.isHeld) {
                     runCatching { wakeLock.release() }
-                        .onFailure { error -> Log.w(TAG, "Unable to release animation wake lock on destroy", error) }
+                        .onFailure { error -> Log.w(LOG_TAG, "Unable to release animation wake lock on destroy", error) }
                 }
             }
             animationWakeLock = null
@@ -156,6 +178,9 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     override fun performOnServiceConnected(context: Context, glyphMatrixManager: GlyphMatrixManager) {
         restoreSpawnQueue()
         aodActive = false
+        coroutineScope?.launch {
+            dev.equalparts.glyph_catch.util.MilestoneHandler.checkMilestones(db.pokemonDao(), preferencesManager)
+        }
         tick()
         startLocalClock()
     }
@@ -227,6 +252,10 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             preferencesManager.glyphToyHasTicked = true
         }
 
+        coroutineScope?.launch {
+            applyBreeding()
+        }
+
         val now = System.currentTimeMillis()
         val spawnContext = SpawnContext(
             hasQueuedSpawns = spawnQueue.isNotEmpty(),
@@ -246,15 +275,31 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
 
         val decision = cadenceController.maybeSpawn(now, spawnContext)
         var spawned = decision.spawn
+
+        if (spawned != null && spawned!!.pokemon.id == 201) {
+            val lockTimeMillis = now - (spawned!!.screenOffDurationMinutes * 60 * 1000L)
+            val calendar = Calendar.getInstance().apply { timeInMillis = lockTimeMillis }
+            val lockMinute = calendar.get(Calendar.MINUTE)
+            val variantChar = ('a'.toInt() + (lockMinute % 26)).toChar()
+            spawned = spawned!!.copy(variant = variantChar.toString())
+        }
+
         if (spawned != null && preferencesManager.isRepelActive) {
-            val alreadyCaught = runBlocking { db.pokemonDao().hasPokedexEntry(spawned.pokemon.id) }
-            if (alreadyCaught) {
+            val species = spawned!!.pokemon
+            val variant = spawned!!.variant
+            val hasInInventory = if (species.id == 201 && variant != null) {
+                runBlocking { db.pokemonDao().hasVariantInInventory(species.id, variant) }
+            } else {
+                runBlocking { db.pokemonDao().hasInInventory(species.id) }
+            }
+
+            if (hasInInventory) {
                 spawned = null
             }
         }
 
         if (spawned != null) {
-            addToQueue(spawned)
+            addToQueue(spawned!!)
         }
 
         coroutineScope?.launch {
@@ -297,18 +342,36 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     private suspend fun applyTrainingExp(minutesOff: Int, isBedtime: Boolean) {
         val dao = db.pokemonDao()
-        val active = dao.getActiveTrainingPartner() ?: return
+        val partners = dao.getActiveTrainingPartners()
+        if (partners.isEmpty()) return
+
         val intervalBonus = if (!isBedtime && minutesOff > 0 && minutesOff % TRAINING_EXP_BONUS_INTERVAL_MINUTES == 0) {
             TRAINING_EXP_BONUS_AMOUNT
         } else {
             0
         }
-        val gainedExp = TRAINING_EXP_PER_MINUTE + intervalBonus
-        val result = LevelCalculator.expResult(active.level, active.exp, gainedExp) ?: return
-        dao.updateTrainingProgress(active.id, result.exp, result.level)
-        if (result.leveledUp) {
-            maybeTriggerEvolution(active.copy(level = result.level, exp = result.exp))
+        var gainedExp = (TRAINING_EXP_PER_MINUTE + intervalBonus) / 2
+
+        if (gainedExp <= 0) return
+
+        partners.forEach { active ->
+            val result = LevelCalculator.expResult(active.level, active.exp, gainedExp) ?: return@forEach
+            dao.updateTrainingProgress(active.id, result.exp, result.level)
+            if (result.leveledUp) {
+                val levelsGained = result.level - active.level
+                val newHappiness = (active.happiness + (levelsGained * 2)).coerceAtMost(255)
+                dao.updateHappiness(active.id, newHappiness)
+                maybeTriggerEvolution(active.copy(level = result.level, exp = result.exp, happiness = newHappiness))
+            }
         }
+    }
+
+    /**
+     * Runs during ticks to check for egg production.
+     */
+    private suspend fun applyBreeding() {
+        val partners = db.pokemonDao().getActiveTrainingPartners()
+        breedingController.processBreeding(partners)
     }
 
     /**
@@ -316,12 +379,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      */
     private suspend fun maybeTriggerEvolution(pokemon: CaughtPokemon) {
         val species = Pokemon[pokemon.speciesId] ?: return
-        val target = species.evolvesTo
-            .mapNotNull { Pokemon[it] }
-            .firstOrNull { candidate ->
-                val requirement = candidate.evolutionRequirement as? EvolutionRequirement.Level
-                requirement != null && pokemon.level >= requirement.level
-            } ?: return
+        val target = dev.equalparts.glyph_catch.util.findLevelEvolutionTarget(pokemon) ?: return
         db.pokemonDao().evolvePokemon(
             pokemonId = pokemon.id,
             newSpeciesId = target.id,
@@ -329,6 +387,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             newExp = pokemon.exp
         )
         db.pokemonDao().recordPokedexEntry(target.id)
+        dev.equalparts.glyph_catch.util.MilestoneHandler.checkMilestones(db.pokemonDao(), preferencesManager)
         preferencesManager.enqueueEvolutionNotification(
             previousSpeciesId = species.id,
             newSpeciesId = target.id
@@ -346,15 +405,15 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                 val indexToRemove = spawnQueue.indexOfFirst { !it.pool.isSpecial }
                 if (indexToRemove != -1) {
                     removed = spawnQueue.removeAt(indexToRemove)
-                    Log.d(TAG, "Removed ${removed.pokemon.name} from queue (not special)")
+                    Log.d(LOG_TAG, "Removed ${removed!!.pokemon.name} from queue (not special)")
                 } else {
-                    Log.d(TAG, "Queue full of special spawns, not adding ${spawn.pokemon.name}")
+                    Log.d(LOG_TAG, "Queue full of special spawns, not adding ${spawn.pokemon.name}")
                     return
                 }
             }
 
             spawnQueue.add(spawn)
-            Log.d(TAG, "Spawned ${spawn.pokemon.name} from ${spawn.pool.name} pool")
+            Log.d(LOG_TAG, "Spawned ${spawn.pokemon.name} from ${spawn.pool.name} pool")
             sortQueueByRarity()
             spawnHistory.updateActiveQueue(spawnQueue, newSpawn = spawn)
         }
@@ -402,16 +461,22 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      * Shows the current Pokémon or digital clock on the Glyph Matrix.
      */
     private fun updateGlyphMatrix() {
-        val currentSpawn = synchronized(spawnQueue) {
-            spawnQueue.firstOrNull()
-        }
-
         if (::animationCoordinator.isInitialized && animationCoordinator.isAnimating) {
             return
         }
 
         val lowerBrightness = preferencesManager.glyphToyLowerBrightness
         val brightnessFactor = if (lowerBrightness) LOWER_BRIGHTNESS_FACTOR else null
+
+        if (preferencesManager.pendingEggSpeciesId != 0) {
+            animationCoordinator.showDrawable(dev.equalparts.glyph_catch.R.drawable.matrix_egg, brightnessFactor)
+            displayedSpawn = null
+            return
+        }
+
+        val currentSpawn = synchronized(spawnQueue) {
+            spawnQueue.firstOrNull()
+        }
 
         if (currentSpawn != null) {
             if (displayedSpawn !== currentSpawn) {
@@ -443,7 +508,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      * Show the sprite of a spawned Pokémon on the Glyph Matrix.
      */
     private fun showPokemon(spawn: SpawnResult, brightnessFactor: Float?) {
-        animationCoordinator.showPokemon(spawn.pokemon.id, brightnessFactor)
+        animationCoordinator.showPokemon(spawn.pokemon.id, brightnessFactor, variant = spawn.variant)
         displayedSpawn = spawn
     }
 
@@ -510,8 +575,13 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
      * Called by the system when the user presses the touch button.
      */
     override fun onTouchPointLongPress() {
-        Log.d(TAG, "Touch point long press detected")
+        Log.d(LOG_TAG, "Touch point long press detected")
         coroutineScope?.launch {
+            if (preferencesManager.pendingEggSpeciesId != 0) {
+                catchEgg()
+                return@launch
+            }
+
             val currentSpawn = synchronized(spawnQueue) {
                 spawnQueue.firstOrNull()
             }
@@ -532,13 +602,74 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     }
 
     /**
+     * Catches the currently visible egg.
+     */
+    private suspend fun catchEgg() {
+        val speciesId = preferencesManager.pendingEggSpeciesId
+        val appearedAt = preferencesManager.pendingEggAppearedAt.takeIf { it > 0L } ?: System.currentTimeMillis()
+        Log.d(LOG_TAG, "Catching an egg (Species ID: $speciesId)!")
+
+        val stepsPerKm = 1300
+        val minSteps = 5 * stepsPerKm
+        val maxSteps = 20 * stepsPerKm
+        val requiredSteps = Random.nextInt(minSteps, maxSteps + 1)
+
+        try {
+            val species = Pokemon[speciesId]
+            val gender = when {
+                species == null || species.genderRatio == -1.0 -> dev.equalparts.glyph_catch.data.Gender.GENDERLESS
+                Random.nextDouble() < species.genderRatio -> dev.equalparts.glyph_catch.data.Gender.FEMALE
+                else -> dev.equalparts.glyph_catch.data.Gender.MALE
+            }
+            val caughtPokemon = CaughtPokemon(
+                speciesId = speciesId,
+                spawnedAt = appearedAt,
+                level = 1,
+                exp = 0,
+                isEgg = true,
+                requiredSteps = requiredSteps,
+                gender = gender
+            )
+            db.pokemonDao().insert(caughtPokemon)
+            Log.d(LOG_TAG, "Successfully saved egg to database (Required steps: $requiredSteps)")
+
+            preferencesManager.pendingEggSpeciesId = 0
+            preferencesManager.pendingEggAppearedAt = 0L
+            preferencesManager.breedingBeganAt = System.currentTimeMillis() // Reset timer after acknowledgment
+
+            val snapshot = currentDebugSnapshot()
+            debugCapture.log("egg_catch_success", snapshot) {
+                buildJsonObject {
+                    put("speciesId", JsonPrimitive(speciesId))
+                    put("caughtAt", JsonPrimitive(caughtPokemon.caughtAt))
+                }
+            }
+
+            animationCoordinator.cancelActive()
+            displayedSpawn = null
+
+            val queueNotEmpty = synchronized(spawnQueue) { spawnQueue.isNotEmpty() }
+            showCatchAnimation(faster = queueNotEmpty)
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "Error saving caught egg", e)
+            DebugExceptionTracker.log(applicationContext, e, currentDebugSnapshot(), "catch_egg")
+        }
+    }
+
+    /**
      * Catches the currently spawned Pokémon.
      */
     private suspend fun catchPokemon(spawn: SpawnResult) {
-        Log.d(TAG, "Catching ${spawn.pokemon.name}!")
+        Log.d(LOG_TAG, "Catching ${spawn.pokemon.name}!")
 
         try {
             val alreadyDiscovered = db.pokemonDao().hasPokedexEntry(spawn.pokemon.id)
+            val species = spawn.pokemon
+            val gender = when {
+                species.genderRatio == -1.0 -> dev.equalparts.glyph_catch.data.Gender.GENDERLESS
+                Random.nextDouble() < species.genderRatio -> dev.equalparts.glyph_catch.data.Gender.FEMALE
+                else -> dev.equalparts.glyph_catch.data.Gender.MALE
+            }
             val caughtPokemon = CaughtPokemon(
                 speciesId = spawn.pokemon.id,
                 spawnedAt = spawn.spawnedAtMillis,
@@ -547,11 +678,13 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                 screenOffDurationMinutes = spawn.screenOffDurationMinutes,
                 spawnPoolName = spawn.pool.name,
                 isSpecialSpawn = spawn.pool.name.contains("special", ignoreCase = true),
-                isConditionalSpawn = spawn.pool.name.contains("event", ignoreCase = true)
+                isConditionalSpawn = spawn.pool.name.contains("event", ignoreCase = true),
+                gender = gender,
+                variant = spawn.variant
             )
             db.pokemonDao().insert(caughtPokemon)
             db.pokemonDao().recordPokedexEntry(spawn.pokemon.id)
-            Log.d(TAG, "Successfully saved ${spawn.pokemon.name} to database")
+            Log.d(LOG_TAG, "Successfully saved ${spawn.pokemon.name} to database")
 
             maybeAwardItems(spawn.pokemon.id, alreadyDiscovered)
 
@@ -577,7 +710,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
 
             showCatchAnimation(faster = queueSnapshot.isNotEmpty())
         } catch (e: Exception) {
-            Log.e(TAG, "Error saving caught Pokémon", e)
+            Log.e(LOG_TAG, "Error saving caught Pokémon", e)
             DebugExceptionTracker.log(applicationContext, e, currentDebugSnapshot(), "catch_pokemon")
         }
     }
@@ -597,6 +730,11 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             logItemAward(Item.RARE_CANDY, "duplicate", speciesId)
         }
 
+        if (Random.nextDouble() < SOOTHE_BELL_COOKIE_DROP_CHANCE) {
+            grantItem(Item.SOOTHE_BELL_COOKIE)
+            logItemAward(Item.SOOTHE_BELL_COOKIE, "chance", speciesId)
+        }
+
         val totalCaught = db.pokemonDao().getTotalCaughtCount()
         val linkingCordGuaranteed = totalCaught > 0 && totalCaught % LINKING_CORD_MILESTONE == 0
         val linkingCordRoll = Random.nextDouble() < LINKING_CORD_DROP_CHANCE
@@ -609,15 +747,19 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                 speciesId
             )
         }
+
+        dev.equalparts.glyph_catch.util.MilestoneHandler.checkMilestones(db.pokemonDao(), preferencesManager)
     }
 
-    private suspend fun logItemAward(item: Item, reason: String, speciesId: Int) {
+    private fun logItemAward(item: Item, reason: String, speciesId: Int) {
         val snapshot = currentDebugSnapshot()
-        debugCapture.log("item_award", snapshot) {
-            buildJsonObject {
-                put("item", JsonPrimitive(item.name.lowercase(Locale.US)))
-                put("reason", JsonPrimitive(reason))
-                put("speciesId", JsonPrimitive(speciesId))
+        coroutineScope?.launch {
+            debugCapture.log("item_award", snapshot) {
+                buildJsonObject {
+                    put("item", JsonPrimitive(item.name.lowercase(Locale.US)))
+                    put("reason", JsonPrimitive(reason))
+                    put("speciesId", JsonPrimitive(speciesId))
+                }
             }
         }
     }
@@ -651,7 +793,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         synchronized(animationWakeLockMutex) {
             if (activeAnimationWakeLockHolders == 0) {
                 val acquired = runCatching { wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS) }
-                    .onFailure { error -> Log.w(TAG, "Unable to acquire animation wake lock", error) }
+                    .onFailure { error -> Log.w(LOG_TAG, "Unable to acquire animation wake lock", error) }
                     .isSuccess
                 if (!acquired) {
                     return
@@ -673,7 +815,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             activeAnimationWakeLockHolders--
             if (activeAnimationWakeLockHolders == 0 && wakeLock.isHeld) {
                 runCatching { wakeLock.release() }
-                    .onFailure { error -> Log.w(TAG, "Unable to release animation wake lock", error) }
+                    .onFailure { error -> Log.w(LOG_TAG, "Unable to release animation wake lock", error) }
             }
         }
     }
@@ -690,7 +832,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                     isSpecial = spawn.pool.isSpecial,
                     isConditional = spawn.pool.isConditional,
                     screenOffDurationMinutes = spawn.screenOffDurationMinutes,
-                    spawnedAtMillis = spawn.spawnedAtMillis
+                    spawnedAtMillis = spawn.spawnedAtMillis,
+                    variant = spawn.variant
                 )
             }
 
@@ -699,7 +842,7 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                 .edit {
                     putString(PREFS_KEY_SPAWN_QUEUE, json)
                 }
-            Log.d(TAG, "Saved ${persistentSpawns.size} spawns to storage")
+            Log.d(LOG_TAG, "Saved ${persistentSpawns.size} spawns to storage")
         }
     }
 
@@ -728,16 +871,17 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
                             pokemon = pokemon,
                             pool = pool,
                             screenOffDurationMinutes = persistent.screenOffDurationMinutes,
-                            spawnedAtMillis = persistent.spawnedAtMillis
+                            spawnedAtMillis = persistent.spawnedAtMillis,
+                            variant = persistent.variant
                         )
                         spawnQueue.add(spawn)
                     }
                 }
-                Log.d(TAG, "Restored ${spawnQueue.size} spawns from storage")
+                Log.d(LOG_TAG, "Restored ${spawnQueue.size} spawns from storage")
                 sortQueueByRarity()
                 snapshot = spawnQueue.toList()
             } catch (e: Exception) {
-                Log.e(TAG, "Error restoring spawn queue", e)
+                Log.e(LOG_TAG, "Error restoring spawn queue", e)
                 prefs.edit { remove(PREFS_KEY_SPAWN_QUEUE) }
                 DebugExceptionTracker.log(applicationContext, e, currentDebugSnapshot(), "restore_spawn_queue")
             }
@@ -785,11 +929,53 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
         isBedtime = gameplayContext.sleep.isBedtime
     )
 
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type == Sensor.TYPE_STEP_COUNTER) {
+            val totalSteps = event.values[0].toInt()
+            val previousTotal = preferencesManager.lastStepCount
+
+            if (previousTotal != -1 && totalSteps > previousTotal) {
+                val delta = totalSteps - previousTotal
+                val activeEggId = preferencesManager.activeEggId
+                if (activeEggId != null) {
+                    coroutineScope?.launch {
+                        val hatchedSpeciesId = db.pokemonDao().addStepsAndCheckHatch(activeEggId, delta)
+                        if (hatchedSpeciesId != null) {
+                            // Assign gender if it's missing (eggs saved before the fix)
+                            val pokemon = db.pokemonDao().getCaughtPokemon(activeEggId)
+                            if (pokemon != null && pokemon.gender == dev.equalparts.glyph_catch.data.Gender.GENDERLESS) {
+                                val species = Pokemon[hatchedSpeciesId]
+                                if (species != null && species.genderRatio != -1.0) {
+                                    val gender = if (Random.nextDouble() < species.genderRatio) {
+                                        dev.equalparts.glyph_catch.data.Gender.FEMALE
+                                    } else {
+                                        dev.equalparts.glyph_catch.data.Gender.MALE
+                                    }
+                                    db.pokemonDao().updateGender(activeEggId, gender)
+                                }
+                            }
+
+                            Log.d(LOG_TAG, "Egg $activeEggId hatched into species $hatchedSpeciesId!")
+                            preferencesManager.activeEggId = null
+                            preferencesManager.enqueueHatchNotification(hatchedSpeciesId)
+                        }
+                    }
+                }
+            }
+
+            preferencesManager.lastStepCount = totalSteps
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        // Not needed
+    }
+
     /**
      * Invoked when an unhandled exception occurs in a coroutine.
      */
     private fun handleCoroutineException(throwable: Throwable) {
-        Log.e(TAG, "Unhandled coroutine exception", throwable)
+        Log.e(LOG_TAG, "Unhandled coroutine exception", throwable)
         val snapshot = runCatching {
             if (::gameplayContext.isInitialized) {
                 currentDebugSnapshot()
@@ -807,13 +993,14 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
     }
 
     companion object {
-        private const val TAG = "PokemonGlyphToy"
+        private const val LOG_TAG = "PokemonGlyphToy"
         private const val MAX_QUEUE_SIZE = 4
         private const val PREFS_NAME = "pokemon_glyph_toy_prefs"
         private const val PREFS_KEY_SPAWN_QUEUE = "spawn_queue"
         private const val SLEEP_BONUS_DURATION_MILLIS = 24L * 60 * 60 * 1000
         private const val EVOLUTION_STONE_DROP_CHANCE = 0.10
         private const val LINKING_CORD_DROP_CHANCE = 0.02
+        private const val SOOTHE_BELL_COOKIE_DROP_CHANCE = 0.15
         private const val LINKING_CORD_MILESTONE = 40
 
         private const val GLYPH_MATRIX_SIZE = 25 // 25x25 circular display
@@ -831,7 +1018,8 @@ class PokemonGlyphToyService : GlyphMatrixService("Pokemon-Glyph-Toy") {
             Item.WATER_STONE,
             Item.THUNDER_STONE,
             Item.LEAF_STONE,
-            Item.MOON_STONE
+            Item.MOON_STONE,
+            Item.SUN_STONE
         )
     }
 }

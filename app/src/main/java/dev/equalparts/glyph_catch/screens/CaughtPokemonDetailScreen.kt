@@ -1,5 +1,9 @@
 package dev.equalparts.glyph_catch.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,9 +23,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.equalparts.glyph_catch.AppCard
 import dev.equalparts.glyph_catch.AppEmptyState
@@ -33,10 +39,12 @@ import dev.equalparts.glyph_catch.PokemonSpriteCircle
 import dev.equalparts.glyph_catch.PokemonTypeChips
 import dev.equalparts.glyph_catch.R
 import dev.equalparts.glyph_catch.data.CaughtPokemon
+import dev.equalparts.glyph_catch.data.Item
 import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.data.PokemonDao
 import dev.equalparts.glyph_catch.data.PokemonDatabase
 import dev.equalparts.glyph_catch.data.PreferencesManager
+import dev.equalparts.glyph_catch.util.useItemOnPokemon
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -46,6 +54,11 @@ private data class CaughtPokemonDetailInfo(
     val speciesId: Int?,
     val level: Int,
     val experience: Int,
+    val gender: dev.equalparts.glyph_catch.data.Gender,
+    val happiness: Int,
+    val steps: Int,
+    val requiredSteps: Int,
+    val eggGroups: List<dev.equalparts.glyph_catch.data.EggGroup>,
     val appearedLabel: String?,
     val caughtLabel: String,
     val screenOffLabel: String,
@@ -75,7 +88,8 @@ fun CaughtPokemonDetailScreen(
                 .padding(AppSizes.spacingLarge),
             pokemon = caughtPokemon,
             pokemonDao = pokemonDao,
-            preferencesManager = preferencesManager
+            preferencesManager = preferencesManager,
+            db = db
         )
     }
 }
@@ -105,10 +119,27 @@ private fun CaughtPokemonDetailContent(
     modifier: Modifier,
     pokemon: CaughtPokemon?,
     pokemonDao: PokemonDao,
-    preferencesManager: PreferencesManager
+    preferencesManager: PreferencesManager,
+    db: PokemonDatabase
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isStartingTraining by remember { mutableStateOf(false) }
+    var showSlotSelection by remember { mutableStateOf(false) }
+    val trainingPartners by pokemonDao.watchTrainingPartners().collectAsStateWithLifecycle(emptyList())
+    val activeEggId by preferencesManager.watchActiveEggId().collectAsStateWithLifecycle(null)
+    val cookieItem by db.inventoryDao().watchItem(Item.SOOTHE_BELL_COOKIE.ordinal).collectAsStateWithLifecycle(null)
+    val cookieCount = cookieItem?.quantity ?: 0
+    var showCookieConfirmation by remember { mutableStateOf(false) }
+    var isUsingCookie by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted && pokemon != null) {
+            preferencesManager.activeEggId = pokemon.id
+        }
+    }
 
     Column(
         modifier = modifier,
@@ -122,44 +153,196 @@ private fun CaughtPokemonDetailContent(
         } else {
             CaughtPokemonSummaryCard(pokemon = pokemon)
 
-            Button(
-                onClick = {
-                    scope.launch {
-                        isStartingTraining = true
-                        try {
-                            pokemonDao.setActiveTrainingPartner(pokemon.id)
-                            preferencesManager.markTrainingPartner(pokemon.id)
-                        } finally {
-                            isStartingTraining = false
-                        }
-                    }
-                },
-                enabled = !pokemon.isTraining && !isStartingTraining,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = if (pokemon.isTraining) {
-                        stringResource(R.string.caught_detail_is_training)
-                    } else {
-                        stringResource(R.string.caught_detail_start_training)
-                    }
-                )
-            }
-            if (pokemon.isTraining) {
-                OutlinedButton(
+            if (pokemon.isEgg) {
+                val isInPouch = activeEggId == pokemon.id
+                Button(
                     onClick = {
-                        scope.launch {
-                            pokemonDao.clearTrainingPartner()
-                            preferencesManager.clearTrainingPartner()
+                        val permission = Manifest.permission.ACTIVITY_RECOGNITION
+                        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+                            preferencesManager.activeEggId = pokemon.id
+                        } else {
+                            permissionLauncher.launch(permission)
                         }
                     },
+                    enabled = !isInPouch,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(text = stringResource(R.string.caught_detail_stop_training))
+                    Text(
+                        text = if (isInPouch) {
+                            stringResource(R.string.caught_detail_in_egg_pouch)
+                        } else {
+                            stringResource(R.string.caught_detail_put_in_egg_pouch)
+                        }
+                    )
+                }
+
+                if (isInPouch) {
+                    OutlinedButton(
+                        onClick = {
+                            preferencesManager.activeEggId = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = stringResource(R.string.common_cancel))
+                    }
+                }
+            }
+
+            if (!pokemon.isEgg) {
+                Button(
+                    onClick = {
+                        showSlotSelection = true
+                    },
+                    enabled = !pokemon.isTraining && !isStartingTraining,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = if (pokemon.isTraining) {
+                            stringResource(R.string.caught_detail_is_training)
+                        } else {
+                            stringResource(R.string.caught_detail_start_training)
+                        }
+                    )
+                }
+                if (pokemon.isTraining) {
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                pokemonDao.stopTraining(pokemon.id)
+                                preferencesManager.clearTrainingPartner(pokemon.trainingSlot)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = stringResource(R.string.caught_detail_stop_training))
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = { showCookieConfirmation = true },
+                    enabled = cookieCount > 0 && !isUsingCookie && pokemon.happiness < 255,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val label = stringResource(R.string.item_usage_give_cookie_count, cookieCount)
+                    Text(text = label)
                 }
             }
         }
     }
+
+    if (showCookieConfirmation && pokemon != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showCookieConfirmation = false },
+            title = {
+                Text(
+                    text = stringResource(
+                        R.string.item_usage_confirm_title,
+                        stringResource(R.string.item_soothe_bell_cookie_name)
+                    )
+                )
+            },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.item_usage_confirm_message,
+                        stringResource(R.string.item_soothe_bell_cookie_name),
+                        pokemon.nickname ?: Pokemon[pokemon.speciesId]?.name
+                        ?: stringResource(R.string.common_unknown)
+                    )
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        showCookieConfirmation = false
+                        scope.launch {
+                            isUsingCookie = true
+                            try {
+                                useItemOnPokemon(
+                                    db,
+                                    preferencesManager,
+                                    Item.SOOTHE_BELL_COOKIE,
+                                    pokemon.id
+                                )
+                            } finally {
+                                isUsingCookie = false
+                            }
+                        }
+                    }
+                ) {
+                    Text(text = stringResource(R.string.item_usage_confirm_button))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showCookieConfirmation = false
+                }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
+    if (showSlotSelection && pokemon != null) {
+        TrainingSlotSelectionDialog(
+            partners = trainingPartners,
+            onSlotSelected = { slot ->
+                scope.launch {
+                    isStartingTraining = true
+                    try {
+                        pokemonDao.setActiveTrainingPartner(pokemon.id, slot)
+                        preferencesManager.markTrainingPartner(slot, pokemon.id)
+                        showSlotSelection = false
+                    } finally {
+                        isStartingTraining = false
+                    }
+                }
+            },
+            onDismiss = { showSlotSelection = false }
+        )
+    }
+}
+
+@Composable
+private fun TrainingSlotSelectionDialog(
+    partners: List<CaughtPokemon>,
+    onSlotSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.training_slot_selection_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium)) {
+                for (slot in 1..2) {
+                    val occupant = partners.find { it.trainingSlot == slot }
+                    val occupantSpecies = occupant?.let { Pokemon[it.speciesId] }
+                    val label = if (occupant != null) {
+                        stringResource(
+                            R.string.training_slot_label,
+                            slot,
+                            occupant.nickname ?: occupantSpecies?.name ?: stringResource(R.string.common_unknown),
+                            occupant.level
+                        )
+                    } else {
+                        stringResource(R.string.training_slot_empty, slot)
+                    }
+
+                    Button(
+                        onClick = { onSlotSelected(slot) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = label)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.common_cancel))
+            }
+        }
+    )
 }
 
 @Composable
@@ -202,6 +385,11 @@ private fun CaughtPokemonSummaryCard(pokemon: CaughtPokemon) {
                 speciesId = species?.id,
                 level = pokemon.level,
                 experience = pokemon.exp,
+                gender = pokemon.gender,
+                happiness = pokemon.happiness,
+                steps = pokemon.steps,
+                requiredSteps = pokemon.requiredSteps,
+                eggGroups = species?.eggGroups ?: emptyList(),
                 appearedLabel = appearedAtFormatted,
                 caughtLabel = caughtAtFormatted,
                 screenOffLabel = screenOffText,
@@ -210,56 +398,128 @@ private fun CaughtPokemonSummaryCard(pokemon: CaughtPokemon) {
                 isConditionalSpawn = pokemon.isConditionalSpawn
             )
 
-            CaughtPokemonInfoList(info = info)
+            CaughtPokemonInfoList(info = info, isEgg = pokemon.isEgg)
         }
     }
 }
 
 @Composable
 private fun CaughtPokemonOverview(pokemon: CaughtPokemon, speciesName: String?, typeLabels: List<String>) {
+    val name = if (pokemon.isEgg) {
+        stringResource(R.string.caught_pokemon_egg_name)
+    } else {
+        val baseName = pokemon.nickname ?: speciesName ?: stringResource(R.string.common_unknown)
+        if (pokemon.variant != null) {
+            "$baseName ${pokemon.variant.uppercase()}"
+        } else {
+            baseName
+        }
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium)
     ) {
-        PokemonSpriteCircle(
-            modifier = Modifier.size(AppSizes.homeTileHeight),
-            pokemonId = pokemon.speciesId,
-            pokemonName = speciesName ?: stringResource(R.string.common_unknown)
-        )
+        if (pokemon.isEgg) {
+            PokemonSpriteCircle(
+                modifier = Modifier.size(AppSizes.homeTileHeight),
+                painter = androidx.compose.ui.res.painterResource(R.drawable.matrix_egg),
+                contentDescription = name
+            )
+        } else {
+            PokemonSpriteCircle(
+                modifier = Modifier.size(AppSizes.homeTileHeight),
+                pokemonId = pokemon.speciesId,
+                pokemonName = speciesName ?: stringResource(R.string.common_unknown),
+                variant = pokemon.variant
+            )
+        }
 
         Text(
-            text = pokemon.nickname
-                ?: speciesName
-                ?: stringResource(R.string.common_unknown),
+            text = name,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingTiny)
-        ) {
-            PokemonLevelChip(level = pokemon.level)
-            PokemonExpChip(level = pokemon.level, exp = pokemon.exp)
-        }
-
-        if (typeLabels.isNotEmpty()) {
-            PokemonTypeChips(
-                types = typeLabels,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+        if (pokemon.isEgg) {
+            val progress = if (pokemon.requiredSteps > 0) {
+                pokemon.steps.toFloat() / pokemon.requiredSteps
+            } else {
+                0f
+            }
+            val descriptionRes = when {
+                progress < 0.25f -> R.string.caught_pokemon_egg_description_1
+                progress < 0.50f -> R.string.caught_pokemon_egg_description_2
+                progress < 0.75f -> R.string.caught_pokemon_egg_description_3
+                else -> R.string.caught_pokemon_egg_description_4
+            }
+            Text(
+                text = stringResource(descriptionRes),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
             )
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingTiny)
+            ) {
+                PokemonLevelChip(level = pokemon.level)
+                PokemonExpChip(level = pokemon.level, exp = pokemon.exp)
+            }
+
+            if (typeLabels.isNotEmpty()) {
+                PokemonTypeChips(
+                    types = typeLabels,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun CaughtPokemonInfoList(info: CaughtPokemonDetailInfo) {
+private fun CaughtPokemonInfoList(info: CaughtPokemonDetailInfo, isEgg: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)) {
-        InfoRow(
-            label = stringResource(R.string.caught_detail_info_pokedex),
-            value = info.speciesId?.let { stringResource(R.string.pokedex_entry_number, it) }
-                ?: stringResource(R.string.common_unknown)
-        )
+        if (!isEgg) {
+            InfoRow(
+                label = stringResource(R.string.caught_detail_info_pokedex),
+                value = info.speciesId?.let { stringResource(R.string.pokedex_entry_number, it) }
+                    ?: stringResource(R.string.common_unknown)
+            )
+            InfoRow(
+                label = stringResource(R.string.caught_detail_info_gender),
+                value = when (info.gender) {
+                    dev.equalparts.glyph_catch.data.Gender.MALE -> "Male ♂"
+                    dev.equalparts.glyph_catch.data.Gender.FEMALE -> "Female ♀"
+                    dev.equalparts.glyph_catch.data.Gender.GENDERLESS -> "Genderless"
+                }
+            )
+            InfoRow(
+                label = stringResource(R.string.caught_detail_info_happiness),
+                value = "${info.happiness}/255"
+            )
+            if (info.eggGroups.isNotEmpty()) {
+                InfoRow(
+                    label = stringResource(R.string.caught_detail_info_egg_groups),
+                    value = info.eggGroups.joinToString { group ->
+                        group.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
+                    }
+                )
+            }
+
+        } else {
+            val stepsValue = if (info.requiredSteps > 0) {
+                "${info.steps}/${info.requiredSteps}"
+            } else {
+                info.steps.toString()
+            }
+            InfoRow(
+                label = stringResource(R.string.caught_detail_info_steps),
+                value = stepsValue
+            )
+        }
+
         InfoRow(
             label = stringResource(R.string.caught_detail_info_appeared_on),
             value = info.appearedLabel ?: stringResource(R.string.common_unknown)
@@ -268,30 +528,33 @@ private fun CaughtPokemonInfoList(info: CaughtPokemonDetailInfo) {
             label = stringResource(R.string.caught_detail_info_caught_on),
             value = info.caughtLabel
         )
-        InfoRow(
-            label = stringResource(R.string.caught_detail_info_screen_off_time),
-            value = info.screenOffLabel
-        )
 
-        when {
-            info.isSpecialSpawn -> InfoRow(
-                label = stringResource(R.string.caught_detail_info_spawn_pool),
-                value = stringResource(R.string.caught_detail_encounter_special)
+        if (!isEgg) {
+            InfoRow(
+                label = stringResource(R.string.caught_detail_info_screen_off_time),
+                value = info.screenOffLabel
             )
 
-            info.isConditionalSpawn -> InfoRow(
-                label = stringResource(R.string.caught_detail_info_spawn_pool),
-                value = stringResource(R.string.caught_detail_encounter_event)
-            )
-
-            else -> info.spawnPoolName?.let { pool ->
-                val formattedPool = pool.replace('_', ' ').replaceFirstChar { char ->
-                    char.titlecase(Locale.getDefault())
-                }
-                InfoRow(
+            when {
+                info.isSpecialSpawn -> InfoRow(
                     label = stringResource(R.string.caught_detail_info_spawn_pool),
-                    value = formattedPool
+                    value = stringResource(R.string.caught_detail_encounter_special)
                 )
+
+                info.isConditionalSpawn -> InfoRow(
+                    label = stringResource(R.string.caught_detail_info_spawn_pool),
+                    value = stringResource(R.string.caught_detail_encounter_event)
+                )
+
+                else -> info.spawnPoolName?.let { pool ->
+                    val formattedPool = pool.replace('_', ' ').replaceFirstChar { char ->
+                        char.titlecase(Locale.getDefault())
+                    }
+                    InfoRow(
+                        label = stringResource(R.string.caught_detail_info_spawn_pool),
+                        value = formattedPool
+                    )
+                }
             }
         }
     }

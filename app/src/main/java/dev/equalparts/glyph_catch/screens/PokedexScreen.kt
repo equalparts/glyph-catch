@@ -68,7 +68,7 @@ private fun PokedexGrid(state: PokedexScreenState, onPokemonClick: (Int) -> Unit
         horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingLarge),
         verticalArrangement = Arrangement.spacedBy(AppSizes.spacingLarge)
     ) {
-        items(count = 151) { index ->
+        items(count = 251) { index ->
             val pokemonId = index + 1
             val caught = pokemonId in state.caughtSpeciesIds
             val species = Pokemon.all[pokemonId] ?: return@items

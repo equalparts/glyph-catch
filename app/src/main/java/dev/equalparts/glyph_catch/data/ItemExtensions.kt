@@ -17,6 +17,7 @@ fun Item.nameRes(): Int = when (this) {
     Item.RARE_CANDY -> R.string.item_rare_candy_name
     Item.LINKING_CORD -> R.string.item_linking_cord_name
     Item.REPEL -> R.string.item_repel_name
+    Item.SOOTHE_BELL_COOKIE -> R.string.item_soothe_bell_cookie_name
 }
 
 @StringRes
@@ -31,6 +32,7 @@ fun Item.descriptionRes(): Int = when (this) {
     Item.RARE_CANDY -> R.string.item_rare_candy_description
     Item.LINKING_CORD -> R.string.item_linking_cord_description
     Item.REPEL -> R.string.item_repel_description
+    Item.SOOTHE_BELL_COOKIE -> R.string.item_soothe_bell_cookie_description
 }
 
 fun Item.effectDurationMinutes(): Int? = when (this) {

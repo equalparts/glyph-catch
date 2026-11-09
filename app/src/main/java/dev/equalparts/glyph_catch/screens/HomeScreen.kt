@@ -2,6 +2,7 @@ package dev.equalparts.glyph_catch.screens
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.equalparts.glyph_catch.AppBadge
 import dev.equalparts.glyph_catch.AppCard
@@ -50,6 +52,7 @@ import dev.equalparts.glyph_catch.PokemonSpriteCircle
 import dev.equalparts.glyph_catch.R
 import dev.equalparts.glyph_catch.data.CaughtPokemon
 import dev.equalparts.glyph_catch.data.EvolutionNotification
+import dev.equalparts.glyph_catch.data.HatchNotification
 import dev.equalparts.glyph_catch.data.InventoryItem
 import dev.equalparts.glyph_catch.data.Item
 import dev.equalparts.glyph_catch.data.Pokemon
@@ -68,6 +71,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -80,15 +84,26 @@ fun HomeScreen(
     onSettingsClick: () -> Unit,
     onPokemonClick: (CaughtPokemon) -> Unit,
     onPokedexClick: () -> Unit,
+    onCaughtClick: () -> Unit,
     onBagClick: () -> Unit,
-    onWeatherSettingsClick: () -> Unit
+    onWeatherSettingsClick: () -> Unit,
+    onEggPouchClick: () -> Unit
 ) {
     val recentCatches by db.pokemonDao().watchRecentCatches(5).collectAsStateWithLifecycle(emptyList())
     val uniqueSpecies by db.pokemonDao().watchPokedexProgress().collectAsStateWithLifecycle(0)
     val glyphToyStatusFlow = remember(preferencesManager) { preferencesManager.watchGlyphToyHasTicked() }
     val glyphToyHasTicked by glyphToyStatusFlow.collectAsStateWithLifecycle(false)
     val totalCaught by db.pokemonDao().watchTotalCaughtCount().collectAsStateWithLifecycle(0)
-    val trainingPartner by db.pokemonDao().watchTrainingPartner().collectAsStateWithLifecycle(null)
+    val trainingPartners by db.pokemonDao().watchTrainingPartners().collectAsStateWithLifecycle(emptyList())
+    val activeEggIdFlow = remember(preferencesManager) { preferencesManager.watchActiveEggId() }
+    val activeEggId by activeEggIdFlow.collectAsStateWithLifecycle(null)
+    val activeEgg by remember(activeEggId) {
+        if (activeEggId != null) {
+            db.pokemonDao().watchCaughtPokemon(activeEggId!!)
+        } else {
+            flowOf(null)
+        }
+    }.collectAsStateWithLifecycle(null)
     val superRodIndicatorFlow = remember(preferencesManager) { preferencesManager.watchSuperRodIndicator() }
     val showSuperRodIndicator by superRodIndicatorFlow.collectAsStateWithLifecycle(
         initialValue = preferencesManager.shouldShowSuperRodIndicator()
@@ -103,10 +118,16 @@ fun HomeScreen(
     val evolutionNotificationsFlow =
         remember(preferencesManager) { preferencesManager.watchPendingEvolutionNotifications() }
     val pendingEvolutionNotifications by evolutionNotificationsFlow.collectAsStateWithLifecycle(emptyList())
+
+    val hatchNotificationsFlow =
+        remember(preferencesManager) { preferencesManager.watchPendingHatchNotifications() }
+    val pendingHatchNotifications by hatchNotificationsFlow.collectAsStateWithLifecycle(emptyList())
+
     val scope = rememberCoroutineScope()
     val currentEvolution = pendingEvolutionNotifications.firstOrNull()
+    val currentHatch = pendingHatchNotifications.firstOrNull()
 
-    val progressPercentage = remember(uniqueSpecies) { ((uniqueSpecies * 100) / 151).coerceAtMost(100) }
+    val progressPercentage = remember(uniqueSpecies) { ((uniqueSpecies * 100) / 251).coerceAtMost(100) }
     val dailyTip = remember(tipsProvider) { tipsProvider.getDailyTip() }
     val weatherFlow = remember(weatherProvider) { weatherProvider.watchWeather() }
     val weather by weatherFlow.collectAsStateWithLifecycle(initialValue = weatherProvider.getCurrentWeather())
@@ -164,16 +185,17 @@ fun HomeScreen(
                 Tiles(
                     progressPercentage = progressPercentage,
                     weather = weather,
+                    activeEgg = activeEgg,
                     onPokedexClick = onPokedexClick,
-                    onWeatherClick = onWeatherSettingsClick
+                    onWeatherClick = onWeatherSettingsClick,
+                    onEggPouchClick = onEggPouchClick
                 )
                 Spacer(modifier = Modifier.height(AppSizes.spacingMedium))
-                trainingPartner?.let {
-                    TrainingBanner(
-                        partner = it,
-                        onPartnerClick = onPokemonClick
-                    )
-                }
+                DaycareSection(
+                    trainingPartners = trainingPartners,
+                    onPartnerClick = onPokemonClick,
+                    onEmptySlotClick = onCaughtClick
+                )
                 Spacer(modifier = Modifier.height(AppSizes.spacingMedium))
                 TrainerTipCard(dailyTip = dailyTip)
                 Spacer(modifier = Modifier.height(AppSizes.spacingMedium))
@@ -190,6 +212,17 @@ fun HomeScreen(
                 onDismiss = {
                     scope.launch {
                         preferencesManager.consumeEvolutionNotification()
+                    }
+                }
+            )
+        }
+
+        currentHatch?.let { notification ->
+            HatchNotificationOverlay(
+                notification = notification,
+                onDismiss = {
+                    scope.launch {
+                        preferencesManager.consumeHatchNotification()
                     }
                 }
             )
@@ -223,7 +256,14 @@ private fun Header(onSettingsClick: () -> Unit) {
 }
 
 @Composable
-private fun Tiles(progressPercentage: Int, weather: Weather, onPokedexClick: () -> Unit, onWeatherClick: () -> Unit) {
+private fun Tiles(
+    progressPercentage: Int,
+    weather: Weather,
+    activeEgg: CaughtPokemon?,
+    onPokedexClick: () -> Unit,
+    onWeatherClick: () -> Unit,
+    onEggPouchClick: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium)
@@ -243,6 +283,61 @@ private fun Tiles(progressPercentage: Int, weather: Weather, onPokedexClick: () 
                 .clickable { onWeatherClick() },
             weather = weather
         )
+
+        EggPouchCard(
+            modifier = Modifier
+                .weight(1f)
+                .height(AppSizes.homeTileHeight)
+                .clickable { onEggPouchClick() },
+            activeEgg = activeEgg
+        )
+    }
+}
+
+@Composable
+private fun EggPouchCard(modifier: Modifier = Modifier, activeEgg: CaughtPokemon?) {
+    AppCard(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(AppSizes.spacingLarge),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            if (activeEgg == null) {
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = stringResource(R.string.home_egg_pouch_empty),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = stringResource(R.string.home_egg_pouch_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+                Image(
+                    painter = painterResource(R.drawable.matrix_egg),
+                    contentDescription = stringResource(R.string.caught_pokemon_egg_name),
+                    modifier = Modifier.size(AppSizes.homeWeatherImageSize)
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                val stepsText = if (activeEgg.requiredSteps > 0) {
+                    "${activeEgg.steps}/${activeEgg.requiredSteps}"
+                } else {
+                    activeEgg.steps.toString()
+                }
+                Text(
+                    text = stepsText,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
@@ -262,7 +357,8 @@ private fun ProgressCard(modifier: Modifier = Modifier, progressPercentage: Int)
                 text = stringResource(R.string.home_progress_percentage, progressPercentage),
                 fontFamily = ndotFontFamily,
                 style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = MaterialTheme.typography.headlineMedium.fontSize
             )
 
             Spacer(modifier = Modifier.weight(1f))
@@ -375,39 +471,141 @@ private fun OnboardingCard() {
 }
 
 @Composable
-private fun TrainingBanner(partner: CaughtPokemon, onPartnerClick: (CaughtPokemon) -> Unit) {
-    val species = Pokemon[partner.speciesId]
-    val progress = LevelCalculator.progressFraction(partner.level, partner.exp).coerceIn(0.01f, 1f)
-
-    AppCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = { onPartnerClick(partner) }
-    ) {
-        Row(
+private fun DaycareSection(
+    trainingPartners: List<CaughtPokemon>,
+    onPartnerClick: (CaughtPokemon) -> Unit,
+    onEmptySlotClick: () -> Unit
+) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(AppSizes.spacingMedium),
+            verticalArrangement = Arrangement.spacedBy(AppSizes.spacingSmall)
+        ) {
+            Text(
+                text = stringResource(R.string.home_training_daycare_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            for (slot in 1..2) {
+                val partner = trainingPartners.find { it.trainingSlot == slot }
+                if (partner != null) {
+                    TrainingBanner(
+                        partner = partner,
+                        onPartnerClick = onPartnerClick,
+                        isEmbedded = true
+                    )
+                } else {
+                    EmptyTrainingBanner(
+                        slot = slot,
+                        onClick = onEmptySlotClick
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyTrainingBanner(slot: Int, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(AppSizes.spacingSmall)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(AppSizes.homeWeatherImageSize)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        androidx.compose.foundation.shape.CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.icon_grid_dots),
+                    contentDescription = null,
+                    modifier = Modifier.size(AppSizes.spacingLarge),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(AppSizes.spacingTiny)
+            ) {
+                Text(
+                    text = stringResource(R.string.home_training_slot_badge, slot),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingTiny)
+                ) {
+                    Text(
+                        text = stringResource(R.string.home_training_empty_slot_desc),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrainingBanner(partner: CaughtPokemon, onPartnerClick: (CaughtPokemon) -> Unit, isEmbedded: Boolean = false) {
+    val species = Pokemon[partner.speciesId]
+    val progress = LevelCalculator.progressFraction(partner.level, partner.exp).coerceIn(0.01f, 1f)
+
+    val content = @Composable {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(if (isEmbedded) AppSizes.spacingSmall else AppSizes.spacingMedium),
             horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium),
             verticalAlignment = Alignment.CenterVertically
         ) {
             PokemonSpriteCircle(
                 pokemonId = partner.speciesId,
-                pokemonName = species?.name ?: stringResource(R.string.common_unknown)
+                pokemonName = species?.name ?: stringResource(R.string.common_unknown),
+                variant = partner.variant
             )
 
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(AppSizes.spacingTiny)
             ) {
+                val name = partner.nickname ?: species?.name ?: stringResource(R.string.common_unknown)
+                val displayName = if (partner.variant != null) {
+                    "$name ${partner.variant.uppercase()}"
+                } else {
+                    name
+                }
                 Text(
-                    text = partner.nickname ?: species?.name ?: stringResource(R.string.common_unknown),
+                    text = displayName,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingTiny)
+                    horizontalArrangement = Arrangement.spacedBy(AppSizes.spacingTiny),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     AppBadge(text = stringResource(R.string.home_training_badge))
+                    AppBadge(
+                        text = stringResource(R.string.home_training_slot_badge, partner.trainingSlot),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
                     PokemonLevelChip(level = partner.level)
                     PokemonExpChip(level = partner.level, exp = partner.exp)
                 }
@@ -420,6 +618,19 @@ private fun TrainingBanner(partner: CaughtPokemon, onPartnerClick: (CaughtPokemo
                     drawStopIndicator = { }
                 )
             }
+        }
+    }
+
+    if (isEmbedded) {
+        Box(modifier = Modifier.clickable { onPartnerClick(partner) }) {
+            content()
+        }
+    } else {
+        AppCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { onPartnerClick(partner) }
+        ) {
+            content()
         }
     }
 }
@@ -547,6 +758,76 @@ private fun EvolutionNotificationOverlay(notification: EvolutionNotification, on
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(text = stringResource(R.string.home_evolution_close))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HatchNotificationOverlay(notification: HatchNotification, onDismiss: () -> Unit) {
+    val species = Pokemon[notification.speciesId]
+    val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { distance -> distance * 0.25f },
+        confirmValueChange = { value ->
+            if (value != SwipeToDismissBoxValue.Settled) {
+                onDismiss()
+                true
+            } else {
+                false
+            }
+        }
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = AppSizes.spacingLarge)
+            .padding(top = AppSizes.spacingXLarge),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        SwipeToDismissBox(
+            state = dismissState,
+            enableDismissFromStartToEnd = true,
+            enableDismissFromEndToStart = true,
+            backgroundContent = {}
+        ) {
+            AppCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(AppSizes.spacingLarge),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(AppSizes.spacingMedium)
+                ) {
+                    PokemonSpriteCircle(
+                        modifier = Modifier.size(AppSizes.homeTileHeight),
+                        pokemonId = notification.speciesId,
+                        pokemonName = species?.name ?: stringResource(R.string.common_unknown)
+                    )
+
+                    Text(
+                        text = stringResource(R.string.home_hatch_congrats_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.home_hatch_congrats_message,
+                            species?.name ?: stringResource(R.string.common_unknown)
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = stringResource(R.string.home_hatch_close))
                     }
                 }
             }
@@ -693,13 +974,20 @@ private fun RecentCatchCard(pokemon: CaughtPokemon, referenceTimeMillis: Long, o
                 PokemonSpriteCircle(
                     modifier = Modifier,
                     pokemonId = pokemon.speciesId,
-                    pokemonName = species?.name ?: stringResource(R.string.common_unknown)
+                    pokemonName = species?.name ?: stringResource(R.string.common_unknown),
+                    variant = pokemon.variant
                 )
 
                 Spacer(modifier = Modifier.height(AppSizes.spacingTiny))
 
+                val name = species?.name ?: "???"
+                val displayName = if (pokemon.variant != null) {
+                    "$name ${pokemon.variant.uppercase()}"
+                } else {
+                    name
+                }
                 Text(
-                    text = species?.name ?: "???",
+                    text = displayName,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
@@ -819,7 +1107,7 @@ private val STARTER_STONE_GIFT_ITEMS = listOf(
 )
 private const val RECENT_CATCH_WINDOW_MILLIS = 24 * 60 * 60 * 1000L
 private const val SUPER_ROD_UNLOCK_COUNT = 15
-private const val REPEL_UNLOCK_SPECIES_COUNT = 50
+private const val REPEL_UNLOCK_SPECIES_COUNT = 20
 
 private fun CaughtPokemon.isRecent(referenceTimeMillis: Long): Boolean =
     caughtAt >= referenceTimeMillis - RECENT_CATCH_WINDOW_MILLIS

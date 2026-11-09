@@ -3,6 +3,7 @@ package dev.equalparts.glyph_catch.gameplay.spawner
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.BatteryManager
+import dev.equalparts.glyph_catch.data.EggGroup
 import dev.equalparts.glyph_catch.data.Pokemon
 import dev.equalparts.glyph_catch.gameplay.spawner.models.ModifierEffect
 import org.junit.Assert.fail
@@ -40,7 +41,26 @@ class SpawnCoverageTest {
         val context = createMockContext()
 
         val allPokemon = Pokemon.all.values
-        val stage1Pokemon = allPokemon.filter { it.evolutionRequirement == null }
+        val babyIds = allPokemon.filter { p ->
+            p.evolutionRequirement == null &&
+                p.eggGroups.contains(EggGroup.NO_EGGS) &&
+                p.evolvesTo.isNotEmpty() &&
+                p.genderRatio != -1.0
+        }.map { it.id }.toSet()
+
+        val stage1Pokemon = allPokemon.filter { p ->
+            // Togetic is a special case: it evolves from Togepi (an egg baby)
+            // but is not catchable in the wild.
+            if (p.id == Pokemon.TOGETIC.id) return@filter false
+
+            val isBaseForm = p.evolutionRequirement == null
+            if (isBaseForm) {
+                p.id !in babyIds
+            } else {
+                // Include if it evolves from a baby (making it the first "spawnable" stage)
+                allPokemon.any { it.id in babyIds && it.evolvesTo.contains(p.id) }
+            }
+        }
 
         val spawnRules = createSpawnRules(context)
         val pokemonInSpawnRules = mutableSetOf<Int>()

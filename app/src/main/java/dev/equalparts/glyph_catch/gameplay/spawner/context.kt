@@ -258,6 +258,7 @@ data class GameplayContext(
         private val dayMillis = 24L * 60 * 60 * 1000
 
         var pokedexCount: Int = 0
+        var kantoPokedexCount: Int = 0
         var currentPartnerDays: Int = 0
 
         /**
@@ -326,18 +327,31 @@ data class GameplayContext(
 
             runBlocking {
                 pokedexCount = dao.getUniqueSpeciesCount()
+                kantoPokedexCount = dao.getKantoPokedexCount()
 
-                val activePartner = dao.getActiveTrainingPartner()
-                if (activePartner == null) {
+                val activePartners = dao.getActiveTrainingPartners()
+                if (activePartners.isEmpty()) {
                     currentPartnerDays = 0
-                    preferences.clearTrainingPartner()
+                    preferences.clearAllTrainingPartners()
                 } else {
-                    if (preferences.activeTrainingPartnerId != activePartner.id) {
-                        preferences.markTrainingPartner(activePartner.id, now)
-                    } else {
-                        val startedAt = preferences.trainingPartnerBeganAt
-                        currentPartnerDays = ((now - startedAt) / dayMillis).coerceAtLeast(0).toInt()
+                    var maxDays = 0
+
+                    // Check both possible slots
+                    for (slot in 1..2) {
+                        val partner = activePartners.find { it.trainingSlot == slot }
+                        if (partner == null) {
+                            preferences.clearTrainingPartner(slot)
+                        } else {
+                            if (preferences.activeTrainingPartnerId(slot) != partner.id) {
+                                preferences.markTrainingPartner(slot, partner.id, now)
+                            } else {
+                                val startedAt = preferences.trainingPartnerBeganAt(slot)
+                                val days = ((now - startedAt) / dayMillis).coerceAtLeast(0).toInt()
+                                maxDays = maxOf(maxDays, days)
+                            }
+                        }
                     }
+                    currentPartnerDays = maxDays
                 }
             }
         }

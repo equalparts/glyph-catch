@@ -18,9 +18,11 @@ Glyph Catch is a fan-made Pokémon catching game for the Nothing Phone 3 that re
 
 ![Screenshots: Home screen, Pokédex screen, Pokémon (caught) screen, Bag screen](/visual.png)
 
-**Pokémon appear based on real-world conditions.** Weather conditions boost certain Pokémon types. Zubat comes out at night. Phone running low on battery? Voltorb and its evolution might show up. And with Halloween approaching, you can of course expect Ghost Pokémon. Keep an eye on the daily Trainer Tips in the app for hints! **All 151 Kanto Pokémon are obtainable.**
+**Pokémon appear based on real-world conditions.** Weather conditions boost certain Pokémon types. Zubat comes out at night. Phone running low on battery? Voltorb and its evolution might show up. And with Halloween approaching, you can of course expect Ghost Pokémon. Keep an eye on the daily Trainer Tips in the app for hints! **All 251 Kanto & Johto Pokémon are obtainable.**
 
-**There's more to do than just catching.** Choose a Pokémon to level up, and it gains EXP while your phone is face-down. Pokémon will evolve when they hit the right level. You'll also find items, like evolution stones, Rare Candies for leveling, and the Super Rod to fish for certain aquatic species.
+**There's more to do than just catching.** Choose up to two Pokémon to level up, and they gain EXP while your phone is face-down. Pokémon evolve when they hit the right level, when you use an evolution item, or—for certain species—once they're happy enough. You'll also find items, like evolution stones, Rare Candies for leveling, Soothe Bell Cookies to raise friendship, and the Super Rod to fish for certain aquatic species.
+
+**Breed, hatch, and discover.** Leave two compatible Pokémon training together and you might eventually find an Egg. Eggs hatch as you walk—the more you move, the sooner they're ready. Every Pokémon now has a gender, which determines breeding compatibility and the species an Egg will hatch into. Keep an eye out for Unown, too: the shape it takes depends on the exact minute you set your phone down.
 
 When there are no Pokémon around to catch, the Glyph Toy displays a handy digital clock instead.
 
@@ -29,6 +31,10 @@ When there are no Pokémon around to catch, the Glyph Toy displays a handy digit
 ### Can I fail catches?
 
 No: when you throw a Poké Ball, you have a 100% chance of catching the Pokémon. Glyph Catch is designed to be consistently rewarding and stress-free. Up to four Pokémon can accumulate, and they stay indefinitely—even if you do unlock your phone after. The only chance element is finding Pokémon.
+
+### How do eggs work?
+
+Leave two compatible Pokémon (matching Egg Groups, opposite genders—or anything paired with Ditto) training together. After enough time has passed, an Egg may appear on the Glyph Toy for you to collect. Place an Egg in your Egg Pouch and it will hatch once you've walked enough steps, so it pays to stay active. The Pokémon that hatches is the same species as its mother (or the non-Ditto parent), at its base evolution stage.
 
 ### What if the phone is in my pocket instead of face-down?
 
@@ -44,7 +50,7 @@ Not that I've noticed. And if you actually end up using your phone for just a fe
 
 ### Can I set a dark background for the Glyph Toy?
 
-No - the source sprites would need manual reworking for dark backgrounds (shading, outlines), on top of already adapting them to the 25x25 monochrome display. With 151+ Pokémon, it's beyond the scope of this fan project.
+No - the source sprites would need manual reworking for dark backgrounds (shading, outlines), on top of already adapting them to the 25x25 monochrome display. With 251+ Pokémon, it's beyond the scope of this fan project.
 
 However: if you prefer, you can dim the sprite and background slightly under Settings > Graphics (as of v1.2.0).
 
@@ -59,6 +65,8 @@ Note that Essential Notifications may disconnect the Glyph Toy and disrupt the t
 ## Privacy
 
 Glyph Catch does not collect any personal data.
+
+Hatching Eggs uses your device's step counter, which requires the Physical Activity permission. Step data is only read on-device to track Egg hatching progress and is never transmitted anywhere. You can decline the permission and still play—only Egg hatching is affected.
 
 Live weather sync uses the popular OpenWeatherMap API with a geographical location that you configure, no live location. Refer to the [OpenWeatherMap privacy policy](https://openweather.co.uk/privacy-policy) for details.
 

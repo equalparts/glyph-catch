@@ -55,6 +55,15 @@ fun AppNavigationGraph(navController: NavHostController, db: PokemonDatabase) {
                 onPokedexClick = {
                     navController.navigate(AppScreen.Pokedex.route)
                 },
+                onCaughtClick = {
+                    navController.navigate(AppScreen.Caught.createRoute()) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
                 onBagClick = {
                     navController.navigate(AppScreen.Inventory.route) {
                         popUpTo(navController.graph.findStartDestination().id) {
@@ -66,6 +75,15 @@ fun AppNavigationGraph(navController: NavHostController, db: PokemonDatabase) {
                 },
                 onWeatherSettingsClick = {
                     navController.navigate(AppScreen.Settings.route)
+                },
+                onEggPouchClick = {
+                    navController.navigate(AppScreen.Caught.createRoute(showEggsOnly = true)) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             )
         }
@@ -83,18 +101,25 @@ fun AppNavigationGraph(navController: NavHostController, db: PokemonDatabase) {
                 navArgument("search") {
                     type = NavType.StringType
                     defaultValue = ""
+                },
+                navArgument("showEggsOnly") {
+                    type = NavType.BoolType
+                    defaultValue = false
                 }
             )
         ) { backStackEntry ->
             val search = backStackEntry.arguments?.getString("search") ?: ""
+            val showEggsOnly = backStackEntry.arguments?.getBoolean("showEggsOnly") ?: false
             CaughtScreen(
                 db = db,
                 initialSearchQuery = search,
-                onPokemonClick = { caughtPokemon ->
-                    navController.navigateToCaughtDetail(caughtPokemon.id)
+                initialShowEggsOnly = showEggsOnly,
+                onPokemonClick = { pokemon ->
+                    navController.navigateToCaughtDetail(pokemon.id)
                 }
             )
         }
+
         listOf("caught/detail/{pokemonId}", "home/detail/{pokemonId}").forEach { route ->
             composable(
                 route = route,

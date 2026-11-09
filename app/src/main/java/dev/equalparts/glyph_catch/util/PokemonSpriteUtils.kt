@@ -11,16 +11,18 @@ object PokemonSpriteUtils {
 
     @DrawableRes
     @SuppressLint("DiscouragedApi")
-    fun getMatrixResourceId(context: Context, pokemonId: Int): Int {
+    fun getMatrixResourceId(context: Context, pokemonId: Int, variant: String? = null): Int {
         val spriteNumber = pokemonId.toString().padStart(4, '0')
-        return context.resources.getIdentifier("matrix_$spriteNumber", "drawable", context.packageName)
+        val suffix = if (variant != null) "_$variant" else ""
+        return context.resources.getIdentifier("matrix_$spriteNumber$suffix", "drawable", context.packageName)
     }
 
     @DrawableRes
     @SuppressLint("DiscouragedApi")
-    fun getSpriteResourceId(context: Context, pokemonId: Int): Int {
+    fun getSpriteResourceId(context: Context, pokemonId: Int, variant: String? = null): Int {
         val spriteName = pokemonId.toString().padStart(4, '0')
-        val resourceId = context.resources.getIdentifier("sprite_$spriteName", "drawable", context.packageName)
+        val suffix = if (variant != null) "_$variant" else ""
+        val resourceId = context.resources.getIdentifier("sprite_$spriteName$suffix", "drawable", context.packageName)
         return if (resourceId == 0) {
             context.resources.getIdentifier("sprite_0000", "drawable", context.packageName)
         } else {

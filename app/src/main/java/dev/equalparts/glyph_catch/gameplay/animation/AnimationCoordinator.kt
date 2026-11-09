@@ -42,8 +42,17 @@ internal class AnimationCoordinator(
     /**
      * Shows a static Pokémon image.
      */
-    fun showPokemon(pokemonId: Int, brightnessFactor: Float?) {
-        val baseFrame = glyphFrameHelper.renderPokemonFrame(pokemonId)
+    fun showPokemon(pokemonId: Int, brightnessFactor: Float?, variant: String? = null) {
+        val baseFrame = glyphFrameHelper.renderPokemonFrame(pokemonId, variant = variant)
+        val frame = brightnessFactor?.let { glyphFrameHelper.adjustBrightness(baseFrame, it) } ?: baseFrame
+        glyphMatrixManagerProvider().setMatrixFrame(frame)
+    }
+
+    /**
+     * Shows a static drawable.
+     */
+    fun showDrawable(resourceId: Int, brightnessFactor: Float?) {
+        val baseFrame = glyphFrameHelper.renderDrawableFrame(resourceId)
         val frame = brightnessFactor?.let { glyphFrameHelper.adjustBrightness(baseFrame, it) } ?: baseFrame
         glyphMatrixManagerProvider().setMatrixFrame(frame)
     }
@@ -63,7 +72,7 @@ internal class AnimationCoordinator(
             onAnimationStart()
 
             try {
-                val frames = glyphFrameHelper.createSpawnFrames(spawn.pokemon.id)
+                val frames = glyphFrameHelper.createSpawnFrames(spawn.pokemon.id, variant = spawn.variant)
                 val primary = brightnessFactor?.let { glyphFrameHelper.adjustBrightness(frames.primaryFrame, it) }
                     ?: frames.primaryFrame
                 val flash = brightnessFactor?.let { glyphFrameHelper.adjustBrightness(frames.flashFrame, it) }
