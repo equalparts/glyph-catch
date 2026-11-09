@@ -1,16 +1,28 @@
 # Glyph Catch
 
+> [!WARNING]
+>
+> **Please consider checking out the following independently maintained fork instead:**
+>
+> 👉 **[ErikPeTo1/glyph-catch](https://github.com/ErikPeTo1/glyph-catch)**
+> 
+> **It adds a ton of new features and Pokémon from later regions ✨**
+>
+> This original repository is inactive. Sadly, after 2025 I was no longer able to work on this project.
+>
+
+> 💾 If you are an existing trainer, you can update the original app to v1.3.0 to [migrate your data](https://github.com/ErikPeTo1/glyph-catch/blob/main/FAQ.md#can-i-keep-my-progress-from-the-original-glyph-catch).
+
 > [!IMPORTANT]
 > This is an unofficial fan project and is not affiliated with, endorsed by, or associated with Nintendo, The Pokémon Company, or Game Freak. Pokémon and all related trademarks are © Nintendo/Creatures Inc./GAME FREAK inc.
 
-
 ## Pokémon collecting fan-game for Nothing Phone 3 Glyph Matrix
 
-> #### [⬇️ Download APK](https://github.com/equalparts/glyph-catch/releases/download/v1.2.1/glyph-catch-v1.2.1.apk)
+> #### [⬇️ Download APK](https://github.com/equalparts/glyph-catch/releases/download/v1.3.0/glyph-catch-v1.3.0.apk)
 >
 > **Make sure to configure Glyph Catch as your Always-on Glyph Toy.**
 > 
-> Latest version: v1.2.1 - Oct 27th, 2025 | Adds Glyph Toy graphics settings
+> Latest version: v1.3.0 - Nov 10th, 2026 | Support data export
 
 ![Photo of the Glyph Matrix displaying Charmander](/photo.jpg)
 
